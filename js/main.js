@@ -18,7 +18,7 @@ function init() {
 
 	// add the objects
 	createPlane();
-	createSea();
+	//createSea();
 	createSky();
 
 	// start a loop that will update the objects' positions 
@@ -42,7 +42,7 @@ function createScene() {
 
 	// Add a fog effect to the scene; same color as the
 	// background color used in the style sheet
-	scene.fog = new THREE.Fog(0xf7d9aa, 100, 950);
+	//scene.fog = new THREE.Fog(0xf7d9aa, 100, 950);
 	
 	// Create the camera
 	aspectRatio = WIDTH / HEIGHT;
@@ -57,9 +57,9 @@ function createScene() {
 		);
 	
 	// Set the position of the camera
-	camera.position.x = 0;
-	camera.position.z = 200;
-	camera.position.y = 100;
+	camera.position.x = -100;
+	camera.position.z = 300;
+	camera.position.y = 200;
 	
 	// Create the renderer
 	renderer = new THREE.WebGLRenderer({ 
@@ -86,7 +86,7 @@ function createScene() {
 	
 	// Listen to the screen: if the user resizes it
 	// we have to update the camera and the renderer size
-	window.addEventListener('resize', handleWindowResize, false);
+	//window.addEventListener('resize', handleWindowResize, false);
 }
 
 var hemisphereLight, shadowLight;
@@ -95,7 +95,7 @@ function createLights() {
 	// A hemisphere light is a gradient colored light; 
 	// the first parameter is the sky color, the second parameter is the ground color, 
 	// the third parameter is the intensity of the light
-	hemisphereLight = new THREE.HemisphereLight(0xaaaaaa,0x000000, .9)
+	hemisphereLight = new THREE.HemisphereLight(Colors.darkkblue,Colors.grayblue, .9)
 	
 	// A directional light shines from a specific direction. 
 	// It acts like the sun, that means that all the rays produced are parallel. 
@@ -161,7 +161,7 @@ function createSea(){
 
 	// push it a little bit at the bottom of the scene
 	sea.mesh.position.y = -600;
-
+    sea.mesh.rotateY(1.57)
 	// add the mesh of the sea to the scene
 	scene.add(sea.mesh);
 }
@@ -176,7 +176,7 @@ Cloud = function(){
 	
 	// create a material; a simple white material will do the trick
 	var mat = new THREE.MeshPhongMaterial({
-		color:Colors.white,  
+		color:Colors.orange,  
 	});
 	
 	// duplicate the geometry a random number of times
@@ -188,8 +188,8 @@ Cloud = function(){
 		
 		// set the position and the rotation of each cube randomly
 		m.position.x = i*15;
-		m.position.y = Math.random()*10;
-		m.position.z = Math.random()*10;
+		m.position.y = Math.random()*15;
+		m.position.z = Math.random()*15;
 		m.rotation.z = Math.random()*Math.PI*2;
 		m.rotation.y = Math.random()*Math.PI*2;
 		
@@ -237,7 +237,7 @@ Sky = function(){
 
 		// for a better result, we position the clouds 
 		// at random depths inside of the scene
-		c.mesh.position.z = -400-Math.random()*400;
+		c.mesh.position.z = 200-Math.random()*800;
 		
 		// we also set a random scale for each cloud
 		var s = 1+Math.random()*2;
@@ -255,7 +255,8 @@ var sky;
 
 function createSky(){
 	sky = new Sky();
-	sky.mesh.position.y = -600;
+    sky.mesh.position.y = -600;
+    sky.mesh.rotateY(1.57)
 	scene.add(sky.mesh);
 }
 
@@ -265,7 +266,7 @@ var AirPlane = function() {
 	
 	// Create the cabin
 	var geomCockpit = new THREE.BoxGeometry(60,50,50,1,1,1);
-	var matCockpit = new THREE.MeshPhongMaterial({color:Colors.red, shading:THREE.FlatShading});
+	var matCockpit = new THREE.MeshPhongMaterial({color:Colors.pink, shading:THREE.FlatShading});
 	var cockpit = new THREE.Mesh(geomCockpit, matCockpit);
 	cockpit.castShadow = true;
 	cockpit.receiveShadow = true;
@@ -273,7 +274,7 @@ var AirPlane = function() {
 	
 	// Create the engine
 	var geomEngine = new THREE.BoxGeometry(20,50,50,1,1,1);
-	var matEngine = new THREE.MeshPhongMaterial({color:Colors.white, shading:THREE.FlatShading});
+	var matEngine = new THREE.MeshPhongMaterial({color:Colors.orange, shading:THREE.FlatShading});
 	var engine = new THREE.Mesh(geomEngine, matEngine);
 	engine.position.x = 40;
 	engine.castShadow = true;
@@ -282,7 +283,7 @@ var AirPlane = function() {
 	
 	// Create the tail
 	var geomTailPlane = new THREE.BoxGeometry(15,20,5,1,1,1);
-	var matTailPlane = new THREE.MeshPhongMaterial({color:Colors.red, shading:THREE.FlatShading});
+	var matTailPlane = new THREE.MeshPhongMaterial({color:Colors.pink, shading:THREE.FlatShading});
 	var tailPlane = new THREE.Mesh(geomTailPlane, matTailPlane);
 	tailPlane.position.set(-35,25,0);
 	tailPlane.castShadow = true;
@@ -291,7 +292,7 @@ var AirPlane = function() {
 	
 	// Create the wing
 	var geomSideWing = new THREE.BoxGeometry(40,8,150,1,1,1);
-	var matSideWing = new THREE.MeshPhongMaterial({color:Colors.red, shading:THREE.FlatShading});
+	var matSideWing = new THREE.MeshPhongMaterial({color:Colors.pink, shading:THREE.FlatShading});
 	var sideWing = new THREE.Mesh(geomSideWing, matSideWing);
 	sideWing.castShadow = true;
 	sideWing.receiveShadow = true;
@@ -299,14 +300,14 @@ var AirPlane = function() {
 	
 	// propeller
 	var geomPropeller = new THREE.BoxGeometry(20,10,10,1,1,1);
-	var matPropeller = new THREE.MeshPhongMaterial({color:Colors.brown, shading:THREE.FlatShading});
+	var matPropeller = new THREE.MeshPhongMaterial({color:Colors.darkkblue, shading:THREE.FlatShading});
 	this.propeller = new THREE.Mesh(geomPropeller, matPropeller);
 	this.propeller.castShadow = true;
 	this.propeller.receiveShadow = true;
 	
 	// blades
 	var geomBlade = new THREE.BoxGeometry(1,100,20,1,1,1);
-	var matBlade = new THREE.MeshPhongMaterial({color:Colors.brownDark, shading:THREE.FlatShading});
+	var matBlade = new THREE.MeshPhongMaterial({color:Colors.gray, shading:THREE.FlatShading});
 	
 	var blade = new THREE.Mesh(geomBlade, matBlade);
 	blade.position.set(8,0,0);
@@ -322,7 +323,8 @@ var airplane;
 function createPlane(){ 
 	airplane = new AirPlane();
 	airplane.mesh.scale.set(.25,.25,.25);
-	airplane.mesh.position.y = 100;
+    airplane.mesh.position.y = 100;
+    airplane.mesh.rotateY(1.4)
 	scene.add(airplane.mesh);
 }
 
@@ -333,8 +335,8 @@ function createPlane(){
 function loop(){
 	// Rotate the propeller, the sea and the sky
 	airplane.propeller.rotation.x += 0.3;
-	sea.mesh.rotation.z += .005;
-	sky.mesh.rotation.z += .01;
+	//sea.mesh.rotation.z += .01;
+	sky.mesh.rotation.z += .02;
 
 	// render the scene
 	renderer.render(scene, camera);
