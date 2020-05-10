@@ -16,10 +16,11 @@ var Colors = {
 window.addEventListener('load', init, false);
 
 var clock;
+var bpm=129;
 
 function init() {
     // set up the scene, the camera and the renderer
-    clock = new THREE.Clock();
+   
 	createScene();
 
 	// add the lights
@@ -36,7 +37,8 @@ function init() {
     document.addEventListener('onkeydown', handleKeyDown);
     // Play music
     sound.once('load', function(){
-        //sound.play();
+        clock = new THREE.Clock();
+        sound.play();
         loop();
       });
 	// start a loop that will update the objects' positions 
@@ -129,7 +131,7 @@ function createControls(){
 }
 
 function handleKeyDown(event){
-    console.log("keypress");
+     // console.log("keypress");
 
 }
 
@@ -288,8 +290,8 @@ var Cloud = function(){
                 var vprops = this.waves[i];
                 
                 // update the position of the vertex
-                v.x = vprops.x + Math.cos(vprops.ang/2);
-                v.y = vprops.y + Math.sin(vprops.ang/2);
+                v.x = vprops.x + Math.sin(vprops.ang)*5;
+                v.y = vprops.y + Math.cos(vprops.ang/2)*5;
         
                 // increment the angle for the next frame
                 vprops.ang += vprops.speed;
@@ -354,7 +356,6 @@ var Sky = function(){
 }
 
 Sky.prototype.moveWaves = function (){
-    console.log(this.nClouds)
     // get the vertices
     this.clouds.forEach((element) => {
         element.moveWaves();
@@ -474,10 +475,15 @@ function loop(){
 	// call the loop function again
 	requestAnimationFrame(loop);
 }
-
+var previoustime
 function updateSky(time){
-    //console.log(time.toFixed(2));
-   sky.moveWaves();
+   var beats = time*100;
+   beats = beats.toFixed(0)
+   var divisor=6000/bpm/6;
+   divisor = divisor.toFixed(0)
+  // console.log(beats%46)
+   //todo bpm manager
+   if (beats%divisor==0) sky.moveWaves();
 }
 
 var mousePos={x:0, y:0};
