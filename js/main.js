@@ -1,7 +1,7 @@
 import * as THREE from '../node_modules/three/build/three.module.js'
 import { FlyControls } from '../node_modules/three/examples/jsm/controls/FlyControls.js';
 import  * as Howler from '../node_modules/howler/dist/howler.js';
-
+import { GLTFLoader } from '../node_modules/three/examples/jsm/loaders/GLTFLoader.js';
 var Colors = {
 	darkkblue:0x0d0221,
 	grayblue:0x261447,
@@ -27,7 +27,8 @@ function init() {
 	createLights();
 
 	// add the objects
-	createPlane();
+    createPlane();
+    createShip();
 	//createSea();
     createSky();
     
@@ -243,9 +244,10 @@ var Cloud = function(){
 										});
 	};
 	// create a material; a simple white material will do the trick
-	var mat = new THREE.MeshBasicMaterial({
+	var mat = new THREE.MeshToonMaterial({
         color:Colors.orange,
-        wireframe:true
+        emissive: Colors.orange,
+        wireframe:false
     });
    
     
@@ -315,7 +317,7 @@ var Sky = function(){
 	this.mesh = new THREE.Object3D();
 	
 	// choose a number of clouds to be scattered in the sky
-	this.nClouds = 20;
+	this.nClouds = 60;
 	
 	// To distribute the clouds consistently,
 	// we need to place them according to a uniform angle
@@ -445,6 +447,22 @@ function createPlane(){
 	scene.add(airplane.mesh);
 }
 
+var spaceship;
+
+function createShip(){
+    var loader = new GLTFLoader();
+    loader.load( '../assets/models/nave_inimiga/scene.gltf', function ( gltf ) {
+
+        spaceship = gltf.scene.children[0];
+        scene.add( gltf.scene );
+    
+    }, undefined, function ( error ) {
+    
+        console.error( error );
+    
+    } );
+}
+
 var sound;
 
 function createSound(){
@@ -469,6 +487,7 @@ function loop(){
     //sky.mesh.updateWaves();
     // render the scene
     updateSky(clock.getElapsedTime());
+    updatePlane();
 
     renderer.render(scene, camera);
 
@@ -479,7 +498,7 @@ var previoustime
 function updateSky(time){
    var beats = time*100;
    beats = beats.toFixed(0)
-   var divisor=6000/bpm/6;
+   var divisor=6000/bpm/24;
    divisor = divisor.toFixed(0)
   // console.log(beats%46)
    //todo bpm manager
@@ -520,13 +539,16 @@ function updatePlane(){
 	//airplane.mesh.position.y = targetY;
     //airplane.mesh.position.x = targetX;
 
-    	// update the airplane's position
-	airplane.mesh.position.copy(camera.position);
-    airplane.mesh.rotation.copy(camera.rotation);
-    airplane.mesh.rotateY(0.4);
-    airplane.mesh.translateZ( - 200 );
-    airplane.mesh.translateX(20);
-    airplane.mesh.rotation.y=1;
+        // update the airplane's position
+    var shipmesh = spaceship;
+	shipmesh.position.copy(camera.position);
+    shipmesh.rotation.copy(camera.rotation);
+    shipmesh.translateZ( - 25 );
+    shipmesh.rotateX(1.42);
+    shipmesh.translateX(-10);
+    shipmesh.translateY(-20);
+   // airplane.mesh.translateX(20);
+    //airplane.mesh.rotation.y=1;
     airplane.mesh.updateMatrix();
     //console.log("position %f ",airplane.mesh.rotation.y)
     
