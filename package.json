@@ -1,0 +1,15 @@
+{
+  "name": "mercury-slipstream",
+  "version": "0.0.1",
+  "description": "Demo engine for a foolish concept",
+  "main": "index.js",
+  "dependencies": {
+    "three": "^0.116.1"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Ilkka Turunen",
+  "license": "SEE LICENCE IN LICENSE.txt"
+}
