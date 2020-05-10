@@ -243,7 +243,7 @@ var Cloud = function(){
 	// create a material; a simple white material will do the trick
 	var mat = new THREE.MeshBasicMaterial({
         color:Colors.orange,
-        wireframe:false
+        wireframe:true
     });
    
     
@@ -257,8 +257,8 @@ var Cloud = function(){
 		
 		// set the position and the rotation of each cube randomly
 		m.position.x = i*15;
-		m.position.y = Math.random()*15;
-		m.position.z = Math.random()*15;
+		m.position.y = Math.random()*10;
+		m.position.z = Math.random()*10;
 		m.rotation.z = Math.random()*Math.PI*2;
 		m.rotation.y = Math.random()*Math.PI*2;
 		
@@ -276,31 +276,34 @@ var Cloud = function(){
 }
 
     Cloud.prototype.moveWaves = function (){
-        console.log(this.mesh["children"]);
         // get the vertices
-        var verts = this.mesh["children"][0].vertices;
-        var l = verts.length;
+        this.mesh["children"].forEach((element) => {
+            var verts = element.geometry.vertices;
+            var l = verts.length;
         
-        for (var i=0; i<l; i++){
-            var v = verts[i];
+            for (var i=0; i<l; i++){
+                var v = verts[i];
+                
+                // get the data associated to it
+                var vprops = this.waves[i];
+                
+                // update the position of the vertex
+                v.x = vprops.x + Math.cos(vprops.ang/2);
+                v.y = vprops.y + Math.sin(vprops.ang/2);
+        
+                // increment the angle for the next frame
+                vprops.ang += vprops.speed;
+        
+            }
+        
+            // Tell the renderer that the geometry of the sea has changed.
+            // In fact, in order to maintain the best level of performance, 
+            // three.js caches the geometries and ignores any changes
+            // unless we add this line
+            element.geometry.verticesNeedUpdate=true;
             
-            // get the data associated to it
-            var vprops = this.waves[i];
-            
-            // update the position of the vertex
-            v.x = vprops.x + Math.cos(vprops.ang)*vprops.amp;
-            v.y = vprops.y + Math.sin(vprops.ang)*vprops.amp;
-    
-            // increment the angle for the next frame
-            vprops.ang += vprops.speed;
-    
-        }
-    
-        // Tell the renderer that the geometry of the sea has changed.
-        // In fact, in order to maintain the best level of performance, 
-        // three.js caches the geometries and ignores any changes
-        // unless we add this line
-        this.mesh.geometry.verticesNeedUpdate=true;
+          })
+        
     
     
 }
