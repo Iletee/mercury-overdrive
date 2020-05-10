@@ -35,7 +35,6 @@ function init() {
     document.addEventListener('mousemove', handleMouseMove, false);
     document.addEventListener('onkeydown', handleKeyDown);
     // Play music
-    sound.play();
     sound.once('load', function(){
         //sound.play();
         loop();
@@ -244,7 +243,7 @@ var Cloud = function(){
 	// create a material; a simple white material will do the trick
 	var mat = new THREE.MeshBasicMaterial({
         color:Colors.orange,
-        wireframe:true
+        wireframe:false
     });
    
     
@@ -277,9 +276,9 @@ var Cloud = function(){
 }
 
     Cloud.prototype.moveWaves = function (){
-	
+        console.log(this.mesh["children"]);
         // get the vertices
-        var verts = this.mesh.geometry.vertices;
+        var verts = this.mesh["children"][0].vertices;
         var l = verts.length;
         
         for (var i=0; i<l; i++){
@@ -316,7 +315,8 @@ var Sky = function(){
 	// To distribute the clouds consistently,
 	// we need to place them according to a uniform angle
 	var stepAngle = Math.PI*2 / this.nClouds;
-	
+    this.clouds=[];
+    
 	// create the clouds
 	for(var i=0; i<this.nClouds; i++){
 		var c = new Cloud();
@@ -344,10 +344,21 @@ var Sky = function(){
         c.mesh.scale.set(s,s,s);
     
 
-
+        this.clouds.push(c)
 		// do not forget to add the mesh of each cloud in the scene
 		this.mesh.add(c.mesh);  
 	}  
+}
+
+Sky.prototype.moveWaves = function (){
+    console.log(this.nClouds)
+    // get the vertices
+    this.clouds.forEach((element) => {
+        element.moveWaves();
+      }
+    )
+
+
 }
 
 // Now we instantiate the sky and push its center a bit
@@ -463,7 +474,7 @@ function loop(){
 
 function updateSky(time){
     //console.log(time.toFixed(2));
-    sky.mesh.opacity = 1 + Math.sin(time.toFixed(2) * .0025);
+   sky.moveWaves();
 }
 
 var mousePos={x:0, y:0};
