@@ -1,3 +1,6 @@
+import * as THREE from '../node_modules/three/build/three.module.js'
+import { FlyControls } from '../node_modules/three/examples/jsm/controls/FlyControls.js';
+
 var Colors = {
 	darkkblue:0x0d0221,
 	grayblue:0x261447,
@@ -9,8 +12,11 @@ var Colors = {
 
 window.addEventListener('load', init, false);
 
+var clock;
+
 function init() {
-	// set up the scene, the camera and the renderer
+    // set up the scene, the camera and the renderer
+    clock = new THREE.Clock();
 	createScene();
 
 	// add the lights
@@ -19,12 +25,20 @@ function init() {
 	// add the objects
 	createPlane();
 	//createSea();
-	createSky();
+    createSky();
+    
+    //add the listener
+    createControls();
+    document.addEventListener('mousemove', handleMouseMove, false);
+	
 
 	// start a loop that will update the objects' positions 
 	// and render the scene on each frame
 	loop();
 }
+
+
+
 
 var scene,
 		camera, fieldOfView, aspectRatio, nearPlane, farPlane, HEIGHT, WIDTH,
@@ -89,6 +103,20 @@ function createScene() {
 	//window.addEventListener('resize', handleWindowResize, false);
 }
 
+var flyControls;
+
+function createControls(){
+
+    flyControls = new FlyControls(camera, container);
+
+    flyControls.movementSpeed = 25;
+    flyControls.domElement = container;
+    flyControls.rollSpeed = Math.PI / 24;
+    flyControls.autoForward = true;
+    flyControls.dragToLook = false;
+
+}
+
 var hemisphereLight, shadowLight;
 
 function createLights() {
@@ -126,7 +154,7 @@ function createLights() {
 }
 
 // First let's define a Sea object :
-Sea = function(){
+var Sea = function(){
 	
 	// create the geometry (shape) of the cylinder;
 	// the parameters are: 
@@ -166,7 +194,7 @@ function createSea(){
 	scene.add(sea.mesh);
 }
 
-Cloud = function(){
+var Cloud = function(){
 	// Create an empty container that will hold the different parts of the cloud
 	this.mesh = new THREE.Object3D();
 	
@@ -175,10 +203,14 @@ Cloud = function(){
 	var geom = new THREE.BoxGeometry(20,20,20);
 	
 	// create a material; a simple white material will do the trick
-	var mat = new THREE.MeshPhongMaterial({
-		color:Colors.orange,  
-	});
-	
+	var mat = new THREE.LineBasicMaterial({
+        color:Colors.orange,
+        linewidth: 1,
+	    linecap: 'round', //ignored by WebGLRenderer
+	    linejoin:  'round' //ignored by WebGLRenderer
+    });
+    
+    
 	// duplicate the geometry a random number of times
 	var nBlocs = 3+Math.floor(Math.random()*3);
 	for (var i=0; i<nBlocs; i++ ){
@@ -206,7 +238,7 @@ Cloud = function(){
 	} 
 }
 
-Sky = function(){
+var Sky = function(){
 	// Create an empty container
 	this.mesh = new THREE.Object3D();
 	
@@ -241,7 +273,9 @@ Sky = function(){
 		
 		// we also set a random scale for each cloud
 		var s = 1+Math.random()*2;
-		c.mesh.scale.set(s,s,s);
+        c.mesh.scale.set(s,s,s);
+    
+
 
 		// do not forget to add the mesh of each cloud in the scene
 		this.mesh.add(c.mesh);  
@@ -336,11 +370,68 @@ function loop(){
 	// Rotate the propeller, the sea and the sky
 	airplane.propeller.rotation.x += 0.3;
 	//sea.mesh.rotation.z += .01;
-	sky.mesh.rotation.z += .02;
+    // sky.mesh.rotation.z += .03;
+    var delta = clock.getDelta();
+    flyControls.update(delta);
+    updatePlane()
 
 	// render the scene
 	renderer.render(scene, camera);
 
 	// call the loop function again
 	requestAnimationFrame(loop);
+}
+
+var mousePos={x:0, y:0};
+
+// now handle the mousemove event
+
+function handleMouseMove(event) {
+
+	// here we are converting the mouse position value received 
+	// to a normalized value varying between -1 and 1;
+	// this is the formula for the horizontal axis:
+	
+	var tx = -1 + (event.clientX / WIDTH)*2;
+
+	// for the vertical axis, we need to inverse the formula 
+	// because the 2D y-axis goes the opposite direction of the 3D y-axis
+	
+	var ty = 1 - (event.clientY / HEIGHT)*2;
+	mousePos = {x:tx, y:ty};
+
+}
+
+function updatePlane(){
+
+	// let's move the airplane between -100 and 100 on the horizontal axis, 
+	// and between 25 and 175 on the vertical axis,
+	// depending on the mouse position which ranges between -1 and 1 on both axes;
+	// to achieve that we use a normalize function (see below)
+	
+	var targetX = normalize(mousePos.x, -1, 1, -400, 200);
+	var targetY = normalize(mousePos.y, -1, 1, 25, 325);
+
+	// update the airplane's position
+	airplane.mesh.position.y = targetY;
+    airplane.mesh.position.x = targetX;
+    //console.log("position %f ",airplane.mesh.rotation.y)
+    
+    //limit 
+
+    airplane.mesh.rotation.x=normalize(mousePos.x,-1,1,-0.2,0.2); 
+    //airplane.mesh.rotation.z=normalize(mousePos.x,-1,1,-0.5,0.5);
+
+    airplane.propeller.rotation.x += 0.3;
+}
+
+function normalize(v,vmin,vmax,tmin, tmax){
+
+	var nv = Math.max(Math.min(v,vmax), vmin);
+	var dv = vmax-vmin;
+	var pc = (nv-vmin)/dv;
+	var dt = tmax-tmin;
+	var tv = tmin + (pc*dt);
+	return tv;
+
 }
