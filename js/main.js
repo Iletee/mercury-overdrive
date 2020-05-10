@@ -7,7 +7,9 @@ var Colors = {
 	grayblue:0x261447,
 	turqoise:0x2DE2E6,
 	pink:0xFF3864,
-	orange:0xFF6C11,
+    orange:0xFF6C11,
+    lightorange:0xff9011,
+    darkorange:0xc9550c,
 	gray:0x241734,
 };
 
@@ -31,11 +33,11 @@ function init() {
     //add the listener
     createControls();
     document.addEventListener('mousemove', handleMouseMove, false);
-    
+    document.addEventListener('onkeydown', handleKeyDown);
     // Play music
     sound.play();
     sound.once('load', function(){
-        sound.play();
+        //sound.play();
         loop();
       });
 	// start a loop that will update the objects' positions 
@@ -123,6 +125,13 @@ function createControls(){
     flyControls.autoForward = false;
     flyControls.dragToLook = false;
 
+    
+
+}
+
+function handleKeyDown(event){
+    console.log("keypress");
+
 }
 
 var hemisphereLight, shadowLight;
@@ -209,14 +218,35 @@ var Cloud = function(){
 	// create a cube geometry;
 	// this shape will be duplicated to create the cloud
 	var geom = new THREE.BoxGeometry(20,20,20);
-	
+    geom.mergeVertices();
+    // get the vertices
+	var l = geom.vertices.length;
+
+	// create an array to store new data associated to each vertex
+	this.waves = [];
+
+	for (var i=0; i<l; i++){
+		// get each vertex
+		var v = geom.vertices[i];
+
+		// store some data associated to it
+		this.waves.push({y:v.y,
+										 x:v.x,
+										 z:v.z,
+										 // a random angle
+										 ang:Math.random()*Math.PI*2,
+										 // a random distance
+										 amp:5 + Math.random()*15,
+										 // a random speed between 0.016 and 0.048 radians / frame
+										 speed:0.016 + Math.random()*0.032
+										});
+	};
 	// create a material; a simple white material will do the trick
-	var mat = new THREE.LineBasicMaterial({
+	var mat = new THREE.MeshBasicMaterial({
         color:Colors.orange,
-        linewidth: 1,
-	    linecap: 'round', //ignored by WebGLRenderer
-	    linejoin:  'round' //ignored by WebGLRenderer
+        wireframe:true
     });
+   
     
     
 	// duplicate the geometry a random number of times
@@ -243,7 +273,37 @@ var Cloud = function(){
 		
 		// add the cube to the container we first created
 		this.mesh.add(m);
-	} 
+    } 
+}
+
+    Cloud.prototype.moveWaves = function (){
+	
+        // get the vertices
+        var verts = this.mesh.geometry.vertices;
+        var l = verts.length;
+        
+        for (var i=0; i<l; i++){
+            var v = verts[i];
+            
+            // get the data associated to it
+            var vprops = this.waves[i];
+            
+            // update the position of the vertex
+            v.x = vprops.x + Math.cos(vprops.ang)*vprops.amp;
+            v.y = vprops.y + Math.sin(vprops.ang)*vprops.amp;
+    
+            // increment the angle for the next frame
+            vprops.ang += vprops.speed;
+    
+        }
+    
+        // Tell the renderer that the geometry of the sea has changed.
+        // In fact, in order to maintain the best level of performance, 
+        // three.js caches the geometries and ignores any changes
+        // unless we add this line
+        this.mesh.geometry.verticesNeedUpdate=true;
+    
+    
 }
 
 var Sky = function(){
@@ -387,14 +447,23 @@ function loop(){
 	airplane.propeller.rotation.x += 0.3;
 	//sea.mesh.rotation.z += .01;
     //sky.mesh.rotation.z += .003;
+
     var delta = clock.getDelta();
-    updatePlane()
+
     flyControls.update(delta);
-	// render the scene
-	renderer.render(scene, camera);
+    //sky.mesh.updateWaves();
+    // render the scene
+    updateSky(clock.getElapsedTime());
+
+    renderer.render(scene, camera);
 
 	// call the loop function again
 	requestAnimationFrame(loop);
+}
+
+function updateSky(time){
+    //console.log(time.toFixed(2));
+    sky.mesh.opacity = 1 + Math.sin(time.toFixed(2) * .0025);
 }
 
 var mousePos={x:0, y:0};
@@ -442,7 +511,6 @@ function updatePlane(){
     //console.log("position %f ",airplane.mesh.rotation.y)
     
     //limit 
-
     //airplane.mesh.rotation.x=normalize(mousePos.x,-1,1,-0.2,0.2); 
     //airplane.mesh.rotation.z=normalize(mousePos.x,-1,1,-0.5,0.5);
 
