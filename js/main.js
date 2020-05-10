@@ -1,5 +1,6 @@
 import * as THREE from '../node_modules/three/build/three.module.js'
 import { FlyControls } from '../node_modules/three/examples/jsm/controls/FlyControls.js';
+import  * as Howler from '../node_modules/howler/dist/howler.js';
 
 var Colors = {
 	darkkblue:0x0d0221,
@@ -30,15 +31,18 @@ function init() {
     //add the listener
     createControls();
     document.addEventListener('mousemove', handleMouseMove, false);
-	
-
+    
+    // Play music
+    sound.play();
+    sound.once('load', function(){
+        sound.play();
+        loop();
+      });
 	// start a loop that will update the objects' positions 
 	// and render the scene on each frame
-	loop();
+    
+    
 }
-
-
-
 
 var scene,
 		camera, fieldOfView, aspectRatio, nearPlane, farPlane, HEIGHT, WIDTH,
@@ -100,8 +104,12 @@ function createScene() {
 	
 	// Listen to the screen: if the user resizes it
 	// we have to update the camera and the renderer size
-	//window.addEventListener('resize', handleWindowResize, false);
+    //window.addEventListener('resize', handleWindowResize, false);
+    
+    createSound();
 }
+
+
 
 var flyControls;
 
@@ -109,10 +117,10 @@ function createControls(){
 
     flyControls = new FlyControls(camera, container);
 
-    flyControls.movementSpeed = 25;
+    flyControls.movementSpeed = 200;
     flyControls.domElement = container;
-    flyControls.rollSpeed = Math.PI / 24;
-    flyControls.autoForward = true;
+    flyControls.rollSpeed = Math.PI / 20;
+    flyControls.autoForward = false;
     flyControls.dragToLook = false;
 
 }
@@ -357,9 +365,17 @@ var airplane;
 function createPlane(){ 
 	airplane = new AirPlane();
 	airplane.mesh.scale.set(.25,.25,.25);
-    airplane.mesh.position.y = 100;
-    airplane.mesh.rotateY(1.4)
+    //airplane.mesh.position.y = 100;
+    //
 	scene.add(airplane.mesh);
+}
+
+var sound;
+
+function createSound(){
+    sound = new Howl({
+        src: ['../assets/audio/The_Boy_Got_Skills.mp3']
+      });
 }
 
 /**
@@ -370,11 +386,10 @@ function loop(){
 	// Rotate the propeller, the sea and the sky
 	airplane.propeller.rotation.x += 0.3;
 	//sea.mesh.rotation.z += .01;
-    // sky.mesh.rotation.z += .03;
+    //sky.mesh.rotation.z += .003;
     var delta = clock.getDelta();
-    flyControls.update(delta);
     updatePlane()
-
+    flyControls.update(delta);
 	// render the scene
 	renderer.render(scene, camera);
 
@@ -413,13 +428,22 @@ function updatePlane(){
 	var targetY = normalize(mousePos.y, -1, 1, 25, 325);
 
 	// update the airplane's position
-	airplane.mesh.position.y = targetY;
-    airplane.mesh.position.x = targetX;
+	//airplane.mesh.position.y = targetY;
+    //airplane.mesh.position.x = targetX;
+
+    	// update the airplane's position
+	airplane.mesh.position.copy(camera.position);
+    airplane.mesh.rotation.copy(camera.rotation);
+    airplane.mesh.rotateY(0.4);
+    airplane.mesh.translateZ( - 200 );
+    airplane.mesh.translateX(20);
+    airplane.mesh.rotation.y=1;
+    airplane.mesh.updateMatrix();
     //console.log("position %f ",airplane.mesh.rotation.y)
     
     //limit 
 
-    airplane.mesh.rotation.x=normalize(mousePos.x,-1,1,-0.2,0.2); 
+    //airplane.mesh.rotation.x=normalize(mousePos.x,-1,1,-0.2,0.2); 
     //airplane.mesh.rotation.z=normalize(mousePos.x,-1,1,-0.5,0.5);
 
     airplane.propeller.rotation.x += 0.3;
