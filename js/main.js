@@ -470,13 +470,20 @@ function createPlane(){
 	scene.add(airplane.mesh);
 }
 
+
+var SpaceShip = function() {
+	this.mesh;
+}
+
 var spaceship;
 
 function createShip(){
     var loader = new GLTFLoader();
     loader.load( '../assets/models/nave_inimiga/scene.gltf', function ( gltf ) {
 
-        spaceship = gltf.scene.children[0];
+		spaceship = new SpaceShip(); 
+		spaceship.mesh = gltf.scene.children[0];
+		spaceship.mesh.material = new THREE.MeshStandardMaterial({color: 0xfffff});
         scene.add( gltf.scene );
     
     }, undefined, function ( error ) {
@@ -563,7 +570,7 @@ function updatePlane(){
     //airplane.mesh.position.x = targetX;
 
         // update the airplane's position
-    var shipmesh = spaceship;
+    var shipmesh = spaceship.mesh;
 	shipmesh.position.copy(camera.position);
     shipmesh.rotation.copy(camera.rotation);
     shipmesh.translateZ( - 25 );
