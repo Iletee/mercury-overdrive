@@ -18,7 +18,9 @@ window.addEventListener('load', init, false);
 var clock;
 var bpm=129;
 
-function init() {
+var state="start";
+var spacepressed=false;
+async function init() {
     // set up the scene, the camera and the renderer
    
 	createScene();
@@ -33,20 +35,41 @@ function init() {
     createSky();
     
     //add the listener
-    createControls();
     document.addEventListener('mousemove', handleMouseMove, false);
-    document.addEventListener('onkeydown', handleKeyDown);
+	document.addEventListener('keydown', function (event) {
+		if(event.keyCode==32){
+			console.log("SPACE");
+			spacepressed=true;
+		}
+	 });
+
+
     // Play music
     sound.once('load', function(){
-        clock = new THREE.Clock();
-        sound.play();
-        loop();
+			   
+				document.getElementById("loading").classList.add('hidden');
+
+				
+				//document.getElementById("starter").classList.add('hidden');
+
+				//Hide texts and present game
+				createControls();
+
+				clock = new THREE.Clock();
+				sound.play();
+				loop();
+				document.getElementById("title").classList.add('hidden');
+
+		 
+	
       });
 	// start a loop that will update the objects' positions 
 	// and render the scene on each frame
     
     
 }
+
+
 
 var scene,
 		camera, fieldOfView, aspectRatio, nearPlane, farPlane, HEIGHT, WIDTH,
