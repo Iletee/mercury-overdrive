@@ -354,7 +354,7 @@ var Sky = function(){
 	this.mesh = new THREE.Object3D();
 	
 	// choose a number of clouds to be scattered in the sky
-	this.nClouds = 60;
+	this.nClouds = 80;
 	
 	// To distribute the clouds consistently,
 	// we need to place them according to a uniform angle
@@ -377,7 +377,7 @@ var Sky = function(){
 		c.mesh.position.x = Math.cos(a)*h;
 
 		// rotate the cloud according to its position
-		c.mesh.rotation.z = a + Math.PI/2;
+		//c.mesh.rotation.z = a + Math.PI/2;
 
 		// for a better result, we position the clouds 
 		// at random depths inside of the scene
@@ -605,8 +605,8 @@ function updatePlane(){
    // shipmesh.rotation.z += (mousePos.x / 500 - shipmesh.rotation.z) *0.1;
   //ME
    shipmesh.rotation.x -= (mousePos.y / 250 ) *1;
-   shipmesh.rotation.y -= (mousdsePos.x / 250 ) *1;
-   console.log(mousePos.x);
+   shipmesh.rotation.y -= (mousePos.x / 250 ) *1;
+   //console.log(mousePos.x);
    
    //shipmesh.rotation.y += 0.001;
    //camera.position.x += (mousePos.x / 10 - shipmesh.position.x) * 0.01
