@@ -30,18 +30,24 @@ async function init() {
 
 	// add the objects
     createPlane();
-    createShip();
+	createShip();
+	
 	//createSea();
     createSky();
     
     //add the listener
     document.addEventListener('mousemove', handleMouseMove, false);
 	document.addEventListener('keydown', function (event) {
+		if(event.key=="w"){
+			console.log("w")
+
+
+		}
 		if(event.keyCode==32){
 			console.log("SPACE");
 			spacepressed=true;
 		}
-	 });
+	 },false);
 
 
     // Play music
@@ -49,12 +55,20 @@ async function init() {
 			   
 				document.getElementById("loading").classList.add('hidden');
 
-				
 				//document.getElementById("starter").classList.add('hidden');
 
 				//Hide texts and present game
-				createControls();
+				//createControls();
+				
+				spaceship.mesh.position.copy(camera.position);
+				spaceship.mesh.translateX(30);
+				spaceship.mesh.translateY(-15);
+				spaceship.mesh.translateZ(10);
+				//spaceship.mesh.material= THREE.MeshStandardMaterial({color: 0xff0000});
 
+				spaceship.mesh.rotation.copy(camera.rotation);
+				spaceship.mesh.rotation.x+=Math.PI / 2; //radiansss
+				spaceship.mesh.rotation.y+=Math.PI; //radiansss
 				clock = new THREE.Clock();
 				sound.play();
 				loop();
@@ -102,9 +116,9 @@ function createScene() {
 		);
 	
 	// Set the position of the camera
-	camera.position.x = -100;
-	camera.position.z = 300;
-	camera.position.y = 200;
+	camera.position.x = 100;
+	camera.position.z = -100;
+	camera.position.y = 0;
 	
 	// Create the renderer
 	renderer = new THREE.WebGLRenderer({ 
@@ -114,7 +128,7 @@ function createScene() {
 
 		// Activate the anti-aliasing; this is less performant,
 		// but, as our project is low-poly based, it should be fine :)
-		antialias: true 
+		//antialias: true 
 	});
 
 	// Define the size of the renderer; in this case,
@@ -472,25 +486,33 @@ function createPlane(){
 
 
 var SpaceShip = function() {
-	this.mesh;
+	this.mesh = new THREE.Object3D();
+	this.gltf;
+
 }
 
 var spaceship;
 
 function createShip(){
-    var loader = new GLTFLoader();
-    loader.load( '../assets/models/nave_inimiga/scene.gltf', function ( gltf ) {
+  spaceship = new SpaceShip(); 
+  
+  var loader = new GLTFLoader();
+  loader.load( '../assets/models/nave_inimiga/scene.gltf', function (gltf2){
+	  // get the vertices
+	  spaceship.gltf=gltf2;
+	  spaceship.mesh=gltf2.scene.children[0];
+	  spaceship.mesh.rotateY(3);
+	  spaceship.mesh.rotateZ(2);
+	  scene.add(gltf2.scene);	
+	  
+  }, undefined, function ( error ) {
+  
+	  console.error( error );
+  
+  } );
 
-		spaceship = new SpaceShip(); 
-		spaceship.mesh = gltf.scene.children[0];
-		spaceship.mesh.material = new THREE.MeshStandardMaterial({color: 0xfffff});
-        scene.add( gltf.scene );
-    
-    }, undefined, function ( error ) {
-    
-        console.error( error );
-    
-    } );
+  
+
 }
 
 var sound;
@@ -513,7 +535,7 @@ function loop(){
 
     var delta = clock.getDelta();
 
-    flyControls.update(delta);
+    //flyControls.update(delta);
     //sky.mesh.updateWaves();
     // render the scene
     updateSky(clock.getElapsedTime());
@@ -562,8 +584,8 @@ function updatePlane(){
 	// depending on the mouse position which ranges between -1 and 1 on both axes;
 	// to achieve that we use a normalize function (see below)
 	
-	var targetX = normalize(mousePos.x, -1, 1, -400, 200);
-	var targetY = normalize(mousePos.y, -1, 1, 25, 325);
+	var targetX = normalize(mousePos.x, -1, 1, -0.0001, 0.0001);
+	var targetY = normalize(mousePos.y, -1, 1, -1, 1);
 
 	// update the airplane's position
 	//airplane.mesh.position.y = targetY;
@@ -571,15 +593,27 @@ function updatePlane(){
 
         // update the airplane's position
     var shipmesh = spaceship.mesh;
-	shipmesh.position.copy(camera.position);
-    shipmesh.rotation.copy(camera.rotation);
-    shipmesh.translateZ( - 25 );
-    shipmesh.rotateX(1.42);
-    shipmesh.translateX(-10);
-    shipmesh.translateY(-20);
+	//shipmesh.position.copy(camera.position);
+    //shipmesh.rotation.copy(camera.rotation);
+    
+	
+	//shipmesh.translateZ(-10);
+   //shipmesh.translateY(-20);
    // airplane.mesh.translateX(20);
-    //airplane.mesh.rotation.y=1;
-    airplane.mesh.updateMatrix();
+	//airplane.mesh.rotation.y=1;
+	//camera.position.z = Math.sin(clock.getElapsedTime() * 40) * Math.PI * 0.01
+   // shipmesh.rotation.z += (mousePos.x / 500 - shipmesh.rotation.z) *0.1;
+  //ME
+   shipmesh.rotation.x -= (mousePos.y / 250 ) *1;
+   shipmesh.rotation.y -= (mousdsePos.x / 250 ) *1;
+   console.log(mousePos.x);
+   
+   //shipmesh.rotation.y += 0.001;
+   //camera.position.x += (mousePos.x / 10 - shipmesh.position.x) * 0.01
+    //camera.position.y += (25 + -mousePos.y / 10 - shipmesh.position.y) * 0.01
+
+
+    //shipmesh.mesh.updateMatrix();
     //console.log("position %f ",airplane.mesh.rotation.y)
     
     //limit 
@@ -594,8 +628,5 @@ function normalize(v,vmin,vmax,tmin, tmax){
 	var nv = Math.max(Math.min(v,vmax), vmin);
 	var dv = vmax-vmin;
 	var pc = (nv-vmin)/dv;
-	var dt = tmax-tmin;
-	var tv = tmin + (pc*dt);
-	return tv;
 
 }
