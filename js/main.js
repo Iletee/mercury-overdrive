@@ -2,6 +2,8 @@ import * as THREE from '../node_modules/three/build/three.module.js'
 import { FlyControls } from '../node_modules/three/examples/jsm/controls/FlyControls.js';
 import  * as Howler from '../node_modules/howler/dist/howler.js';
 import { GLTFLoader } from '../node_modules/three/examples/jsm/loaders/GLTFLoader.js';
+import * as GameLoopControls from './controls.js';
+
 var Colors = {
 	darkkblue:0x0d0221,
 	grayblue:0x261447,
@@ -13,6 +15,7 @@ var Colors = {
 	gray:0x241734,
 };
 
+
 window.addEventListener('load', init, false);
 
 var clock;
@@ -20,6 +23,8 @@ var bpm=129;
 
 var state="start";
 var spacepressed=false;
+var controls;
+
 async function init() {
     // set up the scene, the camera and the renderer
    
@@ -36,18 +41,7 @@ async function init() {
     createSky();
     
     //add the listener
-    document.addEventListener('mousemove', handleMouseMove, false);
-	document.addEventListener('keydown', function (event) {
-		if(event.key=="w"){
-			console.log("w")
-
-
-		}
-		if(event.keyCode==32){
-			console.log("SPACE");
-			spacepressed=true;
-		}
-	 },false);
+	controls = new GameLoopControls.GameLoopControls(window.innerHeight, window.innerWidth);
 
 
     // Play music
@@ -59,7 +53,7 @@ async function init() {
 
 				//Hide texts and present game
 				//createControls();
-				
+				console.log(GameLoopControls.MOUSEPOS);
 				spaceship.mesh.position.copy(camera.position);
 				spaceship.mesh.translateX(30);
 				spaceship.mesh.translateY(-15);
@@ -165,11 +159,6 @@ function createControls(){
     flyControls.dragToLook = false;
 
     
-
-}
-
-function handleKeyDown(event){
-     // console.log("keypress");
 
 }
 
@@ -354,7 +343,7 @@ var Sky = function(){
 	this.mesh = new THREE.Object3D();
 	
 	// choose a number of clouds to be scattered in the sky
-	this.nClouds = 80;
+	this.nClouds = 160;
 	
 	// To distribute the clouds consistently,
 	// we need to place them according to a uniform angle
@@ -561,7 +550,7 @@ var mousePos={x:0, y:0};
 
 // now handle the mousemove event
 
-function handleMouseMove(event) {
+function handleMouseMoved(event) {
 
 	// here we are converting the mouse position value received 
 	// to a normalized value varying between -1 and 1;
@@ -583,9 +572,9 @@ function updatePlane(){
 	// and between 25 and 175 on the vertical axis,
 	// depending on the mouse position which ranges between -1 and 1 on both axes;
 	// to achieve that we use a normalize function (see below)
-	
-	var targetX = normalize(mousePos.x, -1, 1, -0.0001, 0.0001);
-	var targetY = normalize(mousePos.y, -1, 1, -1, 1);
+	 //= controls.getMousePos();
+	//var targetX = normalize(mousePos.x, -1, 1, -0.0001, 0.0001);
+	//ar targetY = normalize(mousePos.y, -1, 1, -1, 1);
 
 	// update the airplane's position
 	//airplane.mesh.position.y = targetY;
@@ -604,8 +593,19 @@ function updatePlane(){
 	//camera.position.z = Math.sin(clock.getElapsedTime() * 40) * Math.PI * 0.01
    // shipmesh.rotation.z += (mousePos.x / 500 - shipmesh.rotation.z) *0.1;
   //ME
-   shipmesh.rotation.x -= (mousePos.y / 250 ) *1;
-   shipmesh.rotation.y -= (mousePos.x / 250 ) *1;
+   shipmesh.rotation.x -= (GameLoopControls.MOUSEPOS.y / 250 ) *1;
+   shipmesh.rotation.y -= (GameLoopControls.MOUSEPOS.x / 250 ) *1;
+   shipmesh.position.z += GameLoopControls.SPEED;
+   shipmesh.position.x -=GameLoopControls.SPEED*shipmesh.rotation.x;
+   shipmesh.position.y -=GameLoopControls.SPEED*shipmesh.rotation.y;
+   camera.position.z += GameLoopControls.SPEED; 
+   camera.position.x -=GameLoopControls.SPEED*shipmesh.rotation.x;
+   camera.position.y -=GameLoopControls.SPEED*shipmesh.rotation.y;
+   camera.rotation.x -= (GameLoopControls.MOUSEPOS.y / 250 ) *1;
+   camera.rotation.y -= (GameLoopControls.MOUSEPOS.x / 250 ) *1;
+
+   console.log(shipmesh.rotation.x, shipmesh.rotation.y)
+
    //console.log(mousePos.x);
    
    //shipmesh.rotation.y += 0.001;
