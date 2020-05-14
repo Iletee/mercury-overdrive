@@ -25,7 +25,7 @@ var state="start";
 var spacepressed=false;
 var controls;
 
-async function init() {
+function init() {
     // set up the scene, the camera and the renderer
    
 	createScene();
@@ -76,8 +76,6 @@ async function init() {
     
     
 }
-
-
 
 var scene,
 		camera, fieldOfView, aspectRatio, nearPlane, farPlane, HEIGHT, WIDTH,
@@ -144,7 +142,7 @@ function createScene() {
     createSound();
 }
 
-
+//These are threes bulilt in controls well leave em here in case i want it again
 
 var flyControls;
 
@@ -546,65 +544,32 @@ function updateSky(time){
    if (beats%divisor==0) sky.moveWaves();
 }
 
-var mousePos={x:0, y:0};
-
-// now handle the mousemove event
-
-function handleMouseMoved(event) {
-
-	// here we are converting the mouse position value received 
-	// to a normalized value varying between -1 and 1;
-	// this is the formula for the horizontal axis:
-	
-	var tx = -1 + (event.clientX / WIDTH)*2;
-
-	// for the vertical axis, we need to inverse the formula 
-	// because the 2D y-axis goes the opposite direction of the 3D y-axis
-	
-	var ty = 1 - (event.clientY / HEIGHT)*2;
-	mousePos = {x:tx, y:ty};
-
-}
-
 function updatePlane(){
+	//Load ship to update
 
-	// let's move the airplane between -100 and 100 on the horizontal axis, 
-	// and between 25 and 175 on the vertical axis,
-	// depending on the mouse position which ranges between -1 and 1 on both axes;
-	// to achieve that we use a normalize function (see below)
-	 //= controls.getMousePos();
-	//var targetX = normalize(mousePos.x, -1, 1, -0.0001, 0.0001);
-	//ar targetY = normalize(mousePos.y, -1, 1, -1, 1);
-
-	// update the airplane's position
-	//airplane.mesh.position.y = targetY;
-    //airplane.mesh.position.x = targetX;
-
-        // update the airplane's position
     var shipmesh = spaceship.mesh;
-	//shipmesh.position.copy(camera.position);
-    //shipmesh.rotation.copy(camera.rotation);
-    
-	
-	//shipmesh.translateZ(-10);
-   //shipmesh.translateY(-20);
-   // airplane.mesh.translateX(20);
-	//airplane.mesh.rotation.y=1;
-	//camera.position.z = Math.sin(clock.getElapsedTime() * 40) * Math.PI * 0.01
-   // shipmesh.rotation.z += (mousePos.x / 500 - shipmesh.rotation.z) *0.1;
-  //ME
-   shipmesh.rotation.x -= (GameLoopControls.MOUSEPOS.y / 250 ) *1;
-   shipmesh.rotation.y -= (GameLoopControls.MOUSEPOS.x / 250 ) *1;
-   shipmesh.position.z += GameLoopControls.SPEED;
-   shipmesh.position.x -=GameLoopControls.SPEED*shipmesh.rotation.x;
-   shipmesh.position.y -=GameLoopControls.SPEED*shipmesh.rotation.y;
-   camera.position.z += GameLoopControls.SPEED; 
-   camera.position.x -=GameLoopControls.SPEED*shipmesh.rotation.x;
-   camera.position.y -=GameLoopControls.SPEED*shipmesh.rotation.y;
-   camera.rotation.x -= (GameLoopControls.MOUSEPOS.y / 250 ) *1;
-   camera.rotation.y -= (GameLoopControls.MOUSEPOS.x / 250 ) *1;
 
-   console.log(shipmesh.rotation.x, shipmesh.rotation.y)
+   //Rotate ship axes based on mouse with ceiling values
+   if (shipmesh.rotation.x > 0.8) shipmesh.rotation.x -= (GameLoopControls.MOUSEPOS.y / 250 ) *6; else shipmesh.rotation.x =0.81
+   if (shipmesh.rotation.x < 2.4) shipmesh.rotation.x -= (GameLoopControls.MOUSEPOS.y / 250 ) *6; else shipmesh.rotation.x =2.39
+
+   if (shipmesh.rotation.y >2 ) shipmesh.rotation.y -= (GameLoopControls.MOUSEPOS.x / 250 ) *4; else shipmesh.rotation.y=2.01
+   if (shipmesh.rotation.y < 4) shipmesh.rotation.y -= (GameLoopControls.MOUSEPOS.x / 250 ) *4; else shipmesh.rotation.y=3.99
+ 
+   controls.setRotationX(shipmesh.rotation.x);
+   controls.setRotationY(shipmesh.rotation.y);
+
+	//Move ship and camera based on speed vector - tweak numbers for
+   shipmesh.position.x += GameLoopControls.SPEED*4*Math.sin(shipmesh.rotation.y);  //left right
+   shipmesh.position.z -=GameLoopControls.SPEED*Math.cos(shipmesh.rotation.z); //forward
+   shipmesh.position.y -=GameLoopControls.SPEED*2*Math.cos(shipmesh.rotation.x);
+   camera.position.x += GameLoopControls.SPEED*4*Math.sin(shipmesh.rotation.y); 
+   camera.position.z -=GameLoopControls.SPEED*Math.cos(shipmesh.rotation.z);
+   camera.position.y -=GameLoopControls.SPEED*2*Math.cos(shipmesh.rotation.x);
+ 
+  
+
+   //console.log(shipmesh.rotation.x, shipmesh.rotation.y)
 
    //console.log(mousePos.x);
    

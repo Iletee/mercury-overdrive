@@ -1,6 +1,14 @@
 
 export var MOUSEPOS;
 export var SPEED=0;
+var x;
+var y;
+var rotationX=0;
+var rotationY=0;
+
+//max right up 1.2945732784677597 2.0642676535897904 1.465160639062555 1.587605153589793
+//max right down  1.1650714197316931 2.3228801535898103  1.0845063639696175 2.0794426535897754 
+//left 1.686335360252154 3.945692653589709 1.9252201186164533 4.093717653589795
 
 export var GameLoopControls = function(h, w){
     this.mouseX;
@@ -10,14 +18,13 @@ export var GameLoopControls = function(h, w){
     this.height = h;
     this.width = w;
 
-    console.log(h, w, this.height, this.width);
+    //Listen to mouse and keyboard
     document.addEventListener('mousemove', this.handleMouseMove, false);
 	document.addEventListener('keydown', this.handleKeyDown);	
 }
 GameLoopControls.prototype.getMousePos = function(){
     return this.mousePos;
 }
-
 
 GameLoopControls.prototype.getWindowHeight = function(){
     return this.height;
@@ -26,6 +33,22 @@ GameLoopControls.prototype.getWindowHeight = function(){
 GameLoopControls.prototype.getWindowWidth = function(){
     return this.width;
 }
+
+GameLoopControls.prototype.setRotationX = function(rx){
+    rotationX=rx;
+}
+GameLoopControls.prototype.setRotationY = function(ry){
+    rotationY=ry;
+}
+
+GameLoopControls.prototype.getRotationX = function(rx){
+    rotationX=rx;
+}
+GameLoopControls.prototype.getRotationY = function(ry){
+    rotationY=ry;
+}
+
+
 
 //after getters and setters come the functions
 
@@ -44,6 +67,8 @@ GameLoopControls.prototype.handleMouseMove = function(event){
 }
 
 GameLoopControls.prototype.handleKeyDown = function(event){
+    
+
     if(event.key=="w"){
         console.log("w")
         SPEED+=1;
@@ -54,6 +79,8 @@ GameLoopControls.prototype.handleKeyDown = function(event){
     }
     if(event.keyCode==32){
         console.log("SPACE");
+        console.log(rotationX, rotationY);
+
     }
 }
 
