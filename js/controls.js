@@ -47,6 +47,9 @@ GameLoopControls.prototype.getRotationX = function(rx){
 GameLoopControls.prototype.getRotationY = function(ry){
     rotationY=ry;
 }
+GameLoopControls.prototype.getSpeed = function(){
+    return SPEED;
+}
 
 
 
@@ -71,11 +74,18 @@ GameLoopControls.prototype.handleKeyDown = function(event){
 
     if(event.key=="w"){
         console.log("w")
-        SPEED+=1;
+        if (SPEED >= -5) SPEED+=1;
     }
     if(event.key=="s"){
         console.log("w")
-        SPEED-=1;
+        if (SPEED <=100) SPEED-=1;
+    }   
+    if(event.key=="d"){
+        console.log("d")
+       
+    }   
+    if(event.key =="a"){
+        console.log("d")
     }
     if(event.keyCode==32){
         console.log("SPACE");

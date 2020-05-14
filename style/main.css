@@ -85,6 +85,35 @@
 	animation: blinker 1s linear infinite;
 }
 
+#speedo {
+	bottom: 200px;
+	left: 300px;
+	transform: skew(-5deg, -10deg);
+	width: 200px;
+	z-index:20;
+	font-weight: 1800;
+	font-size: 1000%;
+	position: fixed;
+	font-family: 'Disco';
+	color: white;
+	animation: neon .15s ease-in-out infinite alternate;
+}
+
+#music {
+	bottom: 150px;
+	right: 100px;
+	width: 300px;
+	z-index:20;
+	font-weight: 1800;
+	font-size:100%;
+	position: fixed;
+	font-family: 'Disco';
+	color: white;
+	text-transform: uppercase;
+	text-align: justify;
+}
+
+
 
 .visible {
 	visibility: visible;
@@ -95,6 +124,11 @@
 	visibility: hidden;
 	opacity: 0;
 	transition: visibility 0s 2s, opacity 2s linear;
+  }
+  .hidden-slow {
+	visibility: hidden;
+	opacity: 0;
+	transition: visibility 0s 6s, opacity 6s linear;
   }
   .visible > div,
   .hidden > div {

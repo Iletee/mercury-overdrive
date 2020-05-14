@@ -38,9 +38,10 @@ function init() {
 	createShip();
 	
 	//createSea();
-    createSky();
+	createSky();
+	createHud();
     
-    //add the listener
+    //add the listenersw
 	controls = new GameLoopControls.GameLoopControls(window.innerHeight, window.innerWidth);
 
 
@@ -64,9 +65,16 @@ function init() {
 				spaceship.mesh.rotation.x+=Math.PI / 2; //radiansss
 				spaceship.mesh.rotation.y+=Math.PI; //radiansss
 				clock = new THREE.Clock();
+				
+				//@todo put this to music manager
+				//@todo music manager 
 				sound.play();
+				var music = document.getElementById("music");
+				music.textContent="Max McFerren - The Boy Got Skills";
+				
 				loop();
 				document.getElementById("title").classList.add('hidden');
+				document.getElementById("music").classList.add('hidden-slow');
 
 		 
 	
@@ -75,6 +83,25 @@ function init() {
 	// and render the scene on each frame
     
     
+}
+
+var HeadsUpDisplay = function(){
+	//this.speedometer = document.createElement("div");
+	//this.speedometer.setAttribute("id", "speedo");
+	//this.speedometerElementId = "speedo";
+}
+
+HeadsUpDisplay.prototype.updateSpeed = function (speed){
+	console.log("SPEEED ",speed);
+	var speedo = document.getElementById("speedo");
+	speedo.textContent = speed;
+}
+
+var hud;
+
+function createHud(){
+	hud = new HeadsUpDisplay();
+	
 }
 
 var scene,
@@ -526,7 +553,8 @@ function loop(){
     //sky.mesh.updateWaves();
     // render the scene
     updateSky(clock.getElapsedTime());
-    updatePlane();
+	updatePlane();
+	updateHud();
 
     renderer.render(scene, camera);
 
@@ -542,6 +570,10 @@ function updateSky(time){
   // console.log(beats%46)
    //todo bpm manager
    if (beats%divisor==0) sky.moveWaves();
+}
+
+function updateHud(){
+	hud.updateSpeed(GameLoopControls.SPEED);
 }
 
 function updatePlane(){
@@ -567,25 +599,6 @@ function updatePlane(){
    camera.position.z -=GameLoopControls.SPEED*Math.cos(shipmesh.rotation.z);
    camera.position.y -=GameLoopControls.SPEED*2*Math.cos(shipmesh.rotation.x);
  
-  
-
-   //console.log(shipmesh.rotation.x, shipmesh.rotation.y)
-
-   //console.log(mousePos.x);
-   
-   //shipmesh.rotation.y += 0.001;
-   //camera.position.x += (mousePos.x / 10 - shipmesh.position.x) * 0.01
-    //camera.position.y += (25 + -mousePos.y / 10 - shipmesh.position.y) * 0.01
-
-
-    //shipmesh.mesh.updateMatrix();
-    //console.log("position %f ",airplane.mesh.rotation.y)
-    
-    //limit 
-    //airplane.mesh.rotation.x=normalize(mousePos.x,-1,1,-0.2,0.2); 
-    //airplane.mesh.rotation.z=normalize(mousePos.x,-1,1,-0.5,0.5);
-
-    airplane.propeller.rotation.x += 0.3;
 }
 
 function normalize(v,vmin,vmax,tmin, tmax){
