@@ -67,6 +67,10 @@ GameLoopControls.prototype.handleMouseMove = function(event){
 	
 	var ty = 1 - (event.clientY / window.innerHeight)*2;
     MOUSEPOS = {x:tx, y:ty};
+
+    // move aiming recticle
+    document.getElementById("aiming").style.left = event.clientX-50+"px";
+    document.getElementById("aiming").style.top = event.clientY-50+"px";
 }
 
 GameLoopControls.prototype.handleKeyDown = function(event){

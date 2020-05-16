@@ -40,6 +40,25 @@
 	background: linear-gradient(#241734, #2e2157);
 }
 
+#aiming {
+	z-index: 22;
+	position: absolute;
+	float:left;
+	border-style: solid;
+	width: 100px;
+	height: 100px;
+	text-align: center;
+	line-height: 100px;
+	cursor: none;
+	animation: neon .15s ease-in-out infinite alternate;
+	border-color: white;
+	color: white;
+	font-weight: bolder;
+	font-size: 400%;
+
+
+}
+
 #title {
 	z-index:20;
 	position: fixed;
@@ -48,7 +67,7 @@
 	/* bring your own prefixes */
 	transform: translate(-50%, -50%);
 	font-family: 'Disco';
-	font-weight: 1800;
+	font-weight: 1800;s
 	font-size: 500%;
 	color: white;
     text-transform: as;
