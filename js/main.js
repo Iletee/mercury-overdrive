@@ -29,7 +29,7 @@ function init() {
     // set up the scene, the camera and the renderer
    
 	createScene();
-
+	
 	// add the lights
 	createLights();
 
@@ -187,14 +187,14 @@ function createControls(){
 
 }
 
-var hemisphereLight, shadowLight;
+var hemisphereLight, shadowLight, ambientLight;
 
 function createLights() {
 	// A hemisphere light is a gradient colored light; 
 	// the first parameter is the sky color, the second parameter is the ground color, 
 	// the third parameter is the intensity of the light
 	hemisphereLight = new THREE.HemisphereLight(Colors.darkkblue,Colors.grayblue, .9)
-	
+	ambientLight = new THREE.AmbientLight(0xdc8874, .5);
 	// A directional light shines from a specific direction. 
 	// It acts like the sun, that means that all the rays produced are parallel. 
 	shadowLight = new THREE.DirectionalLight(0xffffff, .9);
@@ -221,6 +221,7 @@ function createLights() {
 	// to activate the lights, just add them to the scene
 	scene.add(hemisphereLight);  
 	scene.add(shadowLight);
+	scene.add(ambientLight);
 }
 
 // First let's define a Sea object :
@@ -502,7 +503,7 @@ function createPlane(){
 var SpaceShip = function() {
 	this.mesh = new THREE.Object3D();
 	this.gltf;
-
+	this.bullets = [];
 }
 
 var spaceship;
@@ -552,7 +553,9 @@ function loop(){
     //flyControls.update(delta);
     //sky.mesh.updateWaves();
     // render the scene
-    updateSky(clock.getElapsedTime());
+	updateSky(clock.getElapsedTime());
+	shootBullets();
+	updateBullets(delta);
 	updatePlane();
 	updateHud();
 
@@ -561,6 +564,7 @@ function loop(){
 	// call the loop function again
 	requestAnimationFrame(loop);
 }
+
 var previoustime
 function updateSky(time){
    var beats = time*100;
@@ -572,13 +576,34 @@ function updateSky(time){
    if (beats%divisor==0) sky.moveWaves();
 }
 
+// HUD Updater for many happy times
 function updateHud(){
 	hud.updateSpeed(GameLoopControls.SPEED);
 }
 
+//And this is the BULLET LOGIC
+function shootBullets(){
+	if (GameLoopControls.BULLETS!=0){
+		let bullet = new THREE.Mesh(new THREE.SphereGeometry(0.5, 8, 4), new THREE.MeshBasicMaterial({
+			color: "aqua"
+		}));
+		bullet.position.copy(spaceship.mesh.getWorldPosition()); // start position - the tip of the weapon
+		bullet.quaternion.copy(camera.quaternion); // apply camera's quaternion
+		scene.add(bullet);
+		spaceship.bullets.push(bullet);
+		GameLoopControls.setBullets(0);
+	}
+}
+
+function updateBullets(delta){
+	var speed = 800;
+	spaceship.bullets.forEach(b => {
+		b.translateZ(-speed *delta); // move along the local z-axis
+	  });
+}
+
 function updatePlane(){
 	//Load ship to update
-
     var shipmesh = spaceship.mesh;
 
    //Rotate ship axes based on mouse with ceiling values

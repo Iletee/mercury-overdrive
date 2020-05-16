@@ -1,6 +1,8 @@
+import * as THREE from '../node_modules/three/build/three.module.js'
 
-export var MOUSEPOS;
+export var MOUSEPOS = {x:0, y:0};
 export var SPEED=0;
+export var BULLETS=0;
 var x;
 var y;
 var rotationX=0;
@@ -20,7 +22,8 @@ export var GameLoopControls = function(h, w){
 
     //Listen to mouse and keyboard
     document.addEventListener('mousemove', this.handleMouseMove, false);
-	document.addEventListener('keydown', this.handleKeyDown);	
+    document.addEventListener("mousedown", this.handleMouseDown, false);
+    document.addEventListener('keydown', this.handleKeyDown);	
 }
 GameLoopControls.prototype.getMousePos = function(){
     return this.mousePos;
@@ -46,6 +49,9 @@ GameLoopControls.prototype.getRotationX = function(rx){
 }
 GameLoopControls.prototype.getRotationY = function(ry){
     rotationY=ry;
+}
+export var setBullets = function(bc){
+    BULLETS=bc;
 }
 GameLoopControls.prototype.getSpeed = function(){
     return SPEED;
@@ -73,26 +79,31 @@ GameLoopControls.prototype.handleMouseMove = function(event){
     document.getElementById("aiming").style.top = event.clientY-50+"px";
 }
 
+GameLoopControls.prototype.handleMouseDown = function(event){
+    // pew pew pew
+    console.log("mousedown");
+    BULLETS+=1;
+  
+}
+
 GameLoopControls.prototype.handleKeyDown = function(event){
     
 
     if(event.key=="w"){
-        console.log("w")
         if (SPEED >= -5) SPEED+=1;
     }
     if(event.key=="s"){
-        console.log("w")
+        
         if (SPEED <=100) SPEED-=1;
     }   
     if(event.key=="d"){
-        console.log("d")
+        
        
     }   
     if(event.key =="a"){
-        console.log("d")
+        
     }
     if(event.keyCode==32){
-        console.log("SPACE");
         console.log(rotationX, rotationY);
 
     }
