@@ -321,7 +321,7 @@ var Cloud = function(){
 	// create a material; a simple white material will do the trick
 	var mat = new THREE.MeshToonMaterial({
         color:Colors.orange,
-        emissive: Colors.orange,
+        //emissive: Colors.orange,
         wireframe:false
     });
    
@@ -538,9 +538,14 @@ function createShip(){
   loader.load( '../assets/models/nave_inimiga/scene.gltf', function (gltf2){
 	  // get the vertices
 	  spaceship.gltf=gltf2;
+	  console.log(gltf2);
 	  spaceship.mesh=gltf2.scene.children[0];
 	  spaceship.mesh.rotateY(3);
 	  spaceship.mesh.rotateZ(2);
+	  var newMaterial = new THREE.MeshToonMaterial({color: Colors.darkkblue, emissive: Colors.darkkblue});
+	  spaceship.mesh.traverse((o) => {
+		if (o.isMesh) o.material = newMaterial;
+	  });
 	  scene.add(gltf2.scene);	
 	  
   }, undefined, function ( error ) {
