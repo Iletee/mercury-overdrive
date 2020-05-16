@@ -3,6 +3,10 @@ import { FlyControls } from '../node_modules/three/examples/jsm/controls/FlyCont
 import  * as Howler from '../node_modules/howler/dist/howler.js';
 import { GLTFLoader } from '../node_modules/three/examples/jsm/loaders/GLTFLoader.js';
 import * as GameLoopControls from './controls.js';
+import { UnrealBloomPass } from '../node_modules/three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { EffectComposer } from '../node_modules/three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass } from '../node_modules/three/examples/jsm/postprocessing/RenderPass.js';
+//import { BloomPass } from './node_modules/three/examples/jsm/postprocessing/BloomPass.js';
 
 var Colors = {
 	darkkblue:0x0d0221,
@@ -14,7 +18,12 @@ var Colors = {
     darkorange:0xc9550c,
 	gray:0x241734,
 };
-
+var params = {
+	exposure: 1.0,
+	bloomStrength: 1.0,
+	bloomThreshold: 0.7,
+	bloomRadius: 1.2
+};
 
 window.addEventListener('load', init, false);
 
@@ -106,7 +115,7 @@ function createHud(){
 
 var scene,
 		camera, fieldOfView, aspectRatio, nearPlane, farPlane, HEIGHT, WIDTH,
-		renderer, container;
+		renderer, container,composer;
 
 function createScene() {
 	// Get the width and the height of the screen,
@@ -138,17 +147,19 @@ function createScene() {
 	camera.position.x = 100;
 	camera.position.z = -100;
 	camera.position.y = 0;
-	
+
 	// Create the renderer
 	renderer = new THREE.WebGLRenderer({ 
 		// Allow transparency to show the gradient background
 		// we defined in the CSS
-		alpha: true, 
+		alpha: false, 
 
 		// Activate the anti-aliasing; this is less performant,
 		// but, as our project is low-poly based, it should be fine :)
-		//antialias: true 
+		antialias: true 
 	});
+
+
 
 	// Define the size of the renderer; in this case,
 	// it will fill the entire screen
@@ -161,6 +172,18 @@ function createScene() {
 	// container we created in the HTML
 	container = document.getElementById('world');
 	container.appendChild(renderer.domElement);
+	var renderScene = new RenderPass( scene, camera );
+
+	var bloomPass = new UnrealBloomPass(new THREE.Vector2( window.innerWidth, window.innerHeight ),1.5, 1, 0.85);
+		bloomPass.threshold = params.bloomThreshold;
+			bloomPass.strength = params.bloomStrength;
+			bloomPass.radius = params.bloomRadius;
+	renderer.setPixelRatio( window.devicePixelRatio );
+
+				var renderScene = new RenderPass( scene, camera );
+	composer = new EffectComposer( renderer );
+	composer.addPass( renderScene );
+	composer.addPass( bloomPass );
 	
 	// Listen to the screen: if the user resizes it
 	// we have to update the camera and the renderer size
@@ -559,7 +582,7 @@ function loop(){
 	updatePlane();
 	updateHud();
 
-    renderer.render(scene, camera);
+    composer.render(scene, camera);
 
 	// call the loop function again
 	requestAnimationFrame(loop);
@@ -583,14 +606,25 @@ function updateHud(){
 
 //And this is the BULLET LOGIC
 function shootBullets(){
+
+
 	if (GameLoopControls.BULLETS!=0){
-		let bullet = new THREE.Mesh(new THREE.SphereGeometry(0.5, 8, 4), new THREE.MeshBasicMaterial({
-			color: "aqua"
+		let bullet = new THREE.Mesh(new THREE.CylinderGeometry(1,1,20,3,null,null,1), new THREE.MeshToonMaterial({
+			color: Colors.pink,
+			emissive: Colors.pink,
+
 		}));
+
+		
 		bullet.position.copy(spaceship.mesh.getWorldPosition()); // start position - the tip of the weapon
-		bullet.quaternion.copy(camera.quaternion); // apply camera's quaternion
+		bullet.quaternion.copy(spaceship.mesh.quaternion); // apply camera's quaternion
+		//bullet.rotation.z-=Math.PI/2;
+		//bullet.rotation.y-=0.5;
+		//bullet.rotation.x-=Math.PI/2;
 		scene.add(bullet);
 		spaceship.bullets.push(bullet);
+
+		//NO BULLETS TO SHOOT
 		GameLoopControls.setBullets(0);
 	}
 }
@@ -598,8 +632,21 @@ function shootBullets(){
 function updateBullets(delta){
 	var speed = 800;
 	spaceship.bullets.forEach(b => {
-		b.translateZ(-speed *delta); // move along the local z-axis
+		b.translateY(-speed *delta); // move along the local z-axis
+		var bPos = new THREE.Vector3(b.position.x,b.position.y,b.position.z);
+		var sPos = new THREE.Vector3(spaceship.mesh.position.x,spaceship.mesh.position.y,spaceship.mesh.position.z);
+		if (bPos.distanceTo(sPos) >2000) cleanBullet(b);
 	  });
+}
+
+function cleanBullet(b){
+	
+	scene.remove(b);
+	const index = spaceship.bullets.indexOf(b);
+	if (index > -1) {
+		spaceship.bullets.splice(index, 1);
+	}
+
 }
 
 function updatePlane(){
