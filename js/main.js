@@ -22,7 +22,7 @@ var params = {
 	exposure: 1.0,
 	bloomStrength: 1.0,
 	bloomThreshold: 0.7,
-	bloomRadius: 1.2
+	bloomRadius: 0.45
 };
 
 window.addEventListener('load', init, false);
@@ -288,6 +288,14 @@ function createSea(){
 	scene.add(sea.mesh);
 }
 
+var Planet = function(){
+	this.mesh = new THREE.Object3D()
+	var geom = new THREE.SphereGeometry(200,50,50);
+	var material = new THREE.MeshToonMaterial( {color: Colors.darkkblue, emissive: Colors.darkkblue} );
+	this.mesh = new THREE.Mesh( geom, material );
+}
+
+
 var Cloud = function(){
 	// Create an empty container that will hold the different parts of the cloud
 	this.mesh = new THREE.Object3D();
@@ -430,6 +438,8 @@ var Sky = function(){
 		// do not forget to add the mesh of each cloud in the scene
 		this.mesh.add(c.mesh);  
 	}  
+	var planet = new Planet();
+	this.mesh.add(planet.mesh)
 }
 
 Sky.prototype.moveWaves = function (){
@@ -542,7 +552,7 @@ function createShip(){
 	  spaceship.mesh=gltf2.scene.children[0];
 	  spaceship.mesh.rotateY(3);
 	  spaceship.mesh.rotateZ(2);
-	  var newMaterial = new THREE.MeshToonMaterial({color: Colors.darkkblue, emissive: Colors.darkkblue});
+	  var newMaterial = new THREE.MeshToonMaterial({color: Colors.darkkblue, emissive: Colors.darkkblue, wireframe:true});
 	  spaceship.mesh.traverse((o) => {
 		if (o.isMesh) o.material = newMaterial;
 	  });
