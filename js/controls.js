@@ -1,8 +1,12 @@
 import * as THREE from '../node_modules/three/build/three.module.js'
 
 export var MOUSEPOS = {x:0, y:0};
+export var RAWMOUSE = {x:0, y:0};
 export var SPEED=0;
 export var BULLETS=0;
+export var COUNTX=0;
+export var COUNTY=0;
+export var COUNTZ=0;
 var x;
 var y;
 var rotationX=0;
@@ -24,6 +28,7 @@ export var GameLoopControls = function(h, w){
     document.addEventListener('mousemove', this.handleMouseMove, false);
     document.addEventListener("mousedown", this.handleMouseDown, false);
     document.addEventListener('keydown', this.handleKeyDown);	
+    document.addEventListener('keyup', this.handleKeyUp);	
 }
 GameLoopControls.prototype.getMousePos = function(){
     return this.mousePos;
@@ -77,6 +82,8 @@ GameLoopControls.prototype.handleMouseMove = function(event){
     // move aiming recticle
     document.getElementById("aiming").style.left = event.clientX-50+"px";
     document.getElementById("aiming").style.top = event.clientY-50+"px";
+
+    RAWMOUSE = {x:event.clientX, y:event.clientY};
 }
 
 GameLoopControls.prototype.handleMouseDown = function(event){
@@ -97,15 +104,45 @@ GameLoopControls.prototype.handleKeyDown = function(event){
         if (SPEED <=100) SPEED-=1;
     }   
     if(event.key=="d"){
-        
+        COUNTX-=0.1;
        
     }   
     if(event.key =="a"){
-        
+        COUNTX+=0.1;
+    }
+    //temp xyz debuggint
+    if(event.key =="i"){
+        COUNTX+=0.1;
+    }
+    if(event.key =="o"){
+        COUNTY+=0.1;
+    }
+    if(event.key =="p"){
+        COUNTZ+=0.1;
+    }
+    if(event.key =="j"){
+        COUNTX-=0.1;
+    }
+    if(event.key =="k"){
+        COUNTY-=0.1;
+    }
+    if(event.key =="l"){
+        COUNTZ-=0.1;
     }
     if(event.keyCode==32){
-        console.log(rotationX, rotationY);
+        console.log(MOUSEPOS);
 
     }
 }
+GameLoopControls.prototype.handleKeyUp = function(event){
+    
 
+  
+    if(event.key=="d"){
+        COUNTX=0;
+       
+    }   
+    if(event.key =="a"){
+        COUNTX=0;
+    }
+}

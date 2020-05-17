@@ -43,7 +43,7 @@ function init() {
 	createLights();
 
 	// add the objects
-    createPlane();
+    //createPlane();
 	createShip();
 	
 	//createSea();
@@ -101,7 +101,7 @@ var HeadsUpDisplay = function(){
 }
 
 HeadsUpDisplay.prototype.updateSpeed = function (speed){
-	console.log("SPEEED ",speed);
+	//console.log("SPEEED ",speed);
 	var speedo = document.getElementById("speedo");
 	speedo.textContent = speed;
 }
@@ -159,8 +159,8 @@ function createScene() {
 		);
 	
 	// Set the position of the camera
-	camera.position.x = 100;
-	camera.position.z = -100;
+	camera.position.x = 0;
+	camera.position.z = 0;
 	camera.position.y = 0;
 
 	// Create the renderer
@@ -171,7 +171,7 @@ function createScene() {
 
 		// Activate the anti-aliasing; this is less performant,
 		// but, as our project is low-poly based, it should be fine :)
-		antialias: true 
+		antialias: false 
 	});
 
 
@@ -595,7 +595,7 @@ function createShip(){
 	  console.error( error );
   
   } );
-
+  spaceship.mesh.rotation.order = "YXZ"; // 
   
 
 }
@@ -614,7 +614,7 @@ function createSound(){
 
 function loop(){
 	// Rotate the propeller, the sea and the sky
-	airplane.propeller.rotation.x += 0.3;
+	//airplane.propeller.rotation.x += 0.3;
 	//sea.mesh.rotation.z += .01;
     //sky.mesh.rotation.z += .003;
 
@@ -624,6 +624,7 @@ function loop(){
     //sky.mesh.updateWaves();
     // render the scene
 	updateSky(clock.getElapsedTime());
+	updatePlane();
 	shootBullets();
 	updateBullets(delta);
 	updatePlane();
@@ -651,23 +652,24 @@ function updateHud(){
 	hud.updateSpeed(GameLoopControls.SPEED);
 }
 
-//And this is the BULLET LOGIC
+//And this is the BULLET FACTORY
 function shootBullets(){
-
-
 	if (GameLoopControls.BULLETS!=0){
-		let bullet = new THREE.Mesh(new THREE.CylinderGeometry(1,1,20,3,null,null,1), new THREE.MeshToonMaterial({
+		let bullet = new THREE.Mesh(new THREE.CylinderGeometry(1,1,5,3,null,null,1), new THREE.MeshToonMaterial({
 			color: Colors.pink,
 			emissive: Colors.pink,
+			emissiveIntensity:3,
+			transparent: true,
+			opacity:1
 
 		}));
 
-		
 		bullet.position.copy(spaceship.mesh.getWorldPosition()); // start position - the tip of the weapon
-		bullet.quaternion.copy(spaceship.mesh.quaternion); // apply camera's quaternion
-		//bullet.rotation.z-=Math.PI/2;
-		//bullet.rotation.y-=0.5;
-		//bullet.rotation.x-=Math.PI/2;
+		bullet.rotation.copy(spaceship.mesh.quaternion); // apply camera's quaternion
+		//bullet.rotation.x+=Math.sin(spaceship.mesh.rotation.x);
+		var mouseVector = new THREE.Vector3((GameLoopControls.MOUSEPOS.x)*-200, -GameLoopControls.MOUSEPOS.y*100,spaceship.mesh.position.z+(100));
+		bullet.lookAt(mouseVector);
+		
 		scene.add(bullet);
 		spaceship.bullets.push(bullet);
 
@@ -677,9 +679,9 @@ function shootBullets(){
 }
 
 function updateBullets(delta){
-	var speed = 800;
+	var speed = 2400;
 	spaceship.bullets.forEach(b => {
-		b.translateY(-speed *delta); // move along the local z-axis
+		b.translateZ(-speed *delta); // move along the local z-axis
 		var bPos = new THREE.Vector3(b.position.x,b.position.y,b.position.z);
 		var sPos = new THREE.Vector3(spaceship.mesh.position.x,spaceship.mesh.position.y,spaceship.mesh.position.z);
 		if (bPos.distanceTo(sPos) >2000) cleanBullet(b);
@@ -696,32 +698,68 @@ function cleanBullet(b){
 
 }
 
+
+
 function updatePlane(){
 	//Load ship to update
 	var shipmesh = spaceship.mesh;
 	var exhaust = spaceship.exhaust;
 	//console.log(exhaust);
 
-   //Rotate ship axes based on mouse with ceiling values
-   if (shipmesh.rotation.x > 0.8) shipmesh.rotation.x -= (GameLoopControls.MOUSEPOS.y / 250 ) *6; else shipmesh.rotation.x =0.81
-   if (shipmesh.rotation.x < 2.4) shipmesh.rotation.x -= (GameLoopControls.MOUSEPOS.y / 250 ) *6; else shipmesh.rotation.x =2.39
+	var mouseVector = new THREE.Vector3(GameLoopControls.RAWMOUSE.x, GameLoopControls.RAWMOUSE.y,-10);
+	//mouseVector.applyQuaternion( worldQuaternion );
+	var sPos = new THREE.Vector3(shipmesh.position.x,shipmesh.position.y,shipmesh.position.z);
+	var quaternion = new THREE.Quaternion();
 
-   if (shipmesh.rotation.y >2 ) shipmesh.rotation.y -= (GameLoopControls.MOUSEPOS.x / 250 ) *4; else shipmesh.rotation.y=2.01
-   if (shipmesh.rotation.y < 4) shipmesh.rotation.y -= (GameLoopControls.MOUSEPOS.x / 250 ) *4; else shipmesh.rotation.y=3.99
+	quaternion.setFromUnitVectors(sPos, mouseVector);
+
+	//console.log(quaternion);
+   //Rotate ship axes based on mouse with ceiling values
+  // if (shipmesh.rotation.x > 0.8) shipmesh.rotation.x -= (GameLoopControls.MOUSEPOS.y / 250 ) *6; else shipmesh.rotation.x =0.81
+  // if (shipmesh.rotation.x < 2.4) shipmesh.rotation.x -= (GameLoopControls.MOUSEPOS.y / 250 ) *6; else shipmesh.rotation.x =2.39
+
+
+   ///rotating ship up and down
+   //if (shipmesh.rotation.x > 0.8 && GameLoopControls.SPEED!=0) shipmesh.rotation.x += ((GameLoopControls.MOUSEPOS.y+0.2)/250 ) *6; else shipmesh.rotation.x =0.81
+  // if (shipmesh.rotation.x < 2.3 && GameLoopControls.SPEED!=0) shipmesh.rotation.x += ((GameLoopControls.MOUSEPOS.y+0.2)/ 250 ) *6; else shipmesh.rotation.x =2.2
+
+  
+   //if (shipmesh.rotation.y >2 ) shipmesh.rotation.y += (GameLoopControls.MOUSEPOS.x / 250 ) *4; else shipmesh.rotation.y=2.01
+   //if (shipmesh.rotation.y < 4) shipmesh.rotation.y += (GameLoopControls.MOUSEPOS.x / 250 ) *4; else shipmesh.rotation.y=3.99
+   
+   
+
+   if (shipmesh.rotation.y >2 ) shipmesh.rotation.y += (GameLoopControls.COUNTX / 250 ) *4; else shipmesh.rotation.y=2.01
+   if (shipmesh.rotation.y < 4) shipmesh.rotation.y += (GameLoopControls.COUNTX / 250 ) *4; else shipmesh.rotation.y=3.99
+
+  // if (shipmesh.rotation.x > 0.8) shipmesh.rotation.z += (GameLoopControls.COUNTX/ 250 ) *3; else shipmesh.rotation.x =0.81
+  // if (shipmesh.rotation.x < 2.4) shipmesh.rotation.z += (GameLoopControls.COUNTX / 250 ) *3; else shipmesh.rotation.x =2.39
+
  
    controls.setRotationX(shipmesh.rotation.x);
    controls.setRotationY(shipmesh.rotation.y);
 
+
+
+  // shipmesh.rotateY(GameLoopControls.COUNTY);
+  // shipmesh.rotateZ(GameLoopControls.COUNTZ);
+   //shipmesh.rotateX(GameLoopControls.COUNTX);
+
 	//Move ship and camera based on speed vector - tweak numbers for
-   shipmesh.position.x += GameLoopControls.SPEED*4*Math.sin(shipmesh.rotation.y);  //left right
-   shipmesh.position.z -=GameLoopControls.SPEED*Math.cos(shipmesh.rotation.z); //forward
-   shipmesh.position.y -=GameLoopControls.SPEED*2*Math.cos(shipmesh.rotation.x);
-   camera.position.x += GameLoopControls.SPEED*4*Math.sin(shipmesh.rotation.y); 
-   camera.position.z -=GameLoopControls.SPEED*Math.cos(shipmesh.rotation.z);
-   camera.position.y -=GameLoopControls.SPEED*2*Math.cos(shipmesh.rotation.x);
+   shipmesh.position.x += GameLoopControls.SPEED*2*Math.sin(shipmesh.rotation.y);  //left right
+   shipmesh.position.z -=GameLoopControls.SPEED*2*Math.cos(shipmesh.rotation.z); //forward
+   shipmesh.position.y -=GameLoopControls.SPEED*1*Math.cos(shipmesh.rotation.x);
+   camera.position.x += GameLoopControls.SPEED*2*Math.sin(shipmesh.rotation.y); 
+   camera.position.z -=GameLoopControls.SPEED*2*Math.cos(shipmesh.rotation.z);
+   camera.position.y -=GameLoopControls.SPEED*1*Math.cos(shipmesh.rotation.x);
+
+   //camera.lookAt(spaceship);
 
    //exhaust.materials[0].transparent = true;
    exhaust.material.opacity = 0 + GameLoopControls.SPEED*0.1 ;//or any other value you like
+
+   //GameLoopControls.COUNTX=0;
+   //GameLoopControls.COUNTY=0;
 }
 
 function normalize(v,vmin,vmax,tmin, tmax){
