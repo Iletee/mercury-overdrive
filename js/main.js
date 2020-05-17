@@ -19,7 +19,7 @@ var Colors = {
 	gray:0x241734,
 };
 var params = {
-	exposure: 1.0,
+	exposure: 0.8,
 	bloomStrength: 1.0,
 	bloomThreshold: 0.7,
 	bloomRadius: 0.45
@@ -79,7 +79,7 @@ function init() {
 				//@todo music manager 
 				sound.play();
 				var music = document.getElementById("music");
-				music.textContent="Max McFerren - The Boy Got Skills";
+				music.textwContent="Max McFerren - The Boy Got Skills";
 				
 				loop();
 				document.getElementById("title").classList.add('hidden');
@@ -136,6 +136,21 @@ function createScene() {
 	fieldOfView = 60;
 	nearPlane = 1;
 	farPlane = 10000;
+
+	const loader = new THREE.CubeTextureLoader();
+    const texture = loader.load([
+		'../assets/models/skybox/purple/mercury_left.png',
+	  '../assets/models/skybox/purple/mercury_right.png',
+	 
+	  '../assets/models/skybox/purple/mercury_up.png',
+	  '../assets/models/skybox/purple/mercury_down.png',
+   
+      '../assets/models/skybox/purple/mercury_front.png',
+      '../assets/models/skybox/purple/mercury_back.png',
+      
+    ]);
+    scene.background = texture;
+
 	camera = new THREE.PerspectiveCamera(
 		fieldOfView,
 		aspectRatio,
@@ -329,7 +344,7 @@ var Cloud = function(){
 	// create a material; a simple white material will do the trick
 	var mat = new THREE.MeshToonMaterial({
         color:Colors.orange,
-        //emissive: Colors.orange,
+        emissive: Colors.orange,
         wireframe:false
     });
    
@@ -537,6 +552,8 @@ var SpaceShip = function() {
 	this.mesh = new THREE.Object3D();
 	this.gltf;
 	this.bullets = [];
+
+
 }
 
 var spaceship;
@@ -552,10 +569,21 @@ function createShip(){
 	  spaceship.mesh=gltf2.scene.children[0];
 	  spaceship.mesh.rotateY(3);
 	  spaceship.mesh.rotateZ(2);
-	  var newMaterial = new THREE.MeshToonMaterial({color: Colors.darkkblue, emissive: Colors.darkkblue, wireframe:true});
-	  spaceship.mesh.traverse((o) => {
+
+	  let exhaust = new THREE.Mesh(new THREE.CylinderGeometry(3,1,3,3,null,null,1), new THREE.MeshToonMaterial({
+		color: Colors.pink,
+		emissive: Colors.pink,
+
+	}));
+
+	
+	exhaust.position.copy(spaceship.mesh.getWorldPosition()); // start position - the tip of the weapon
+	exhaust.position.z+=10;
+	spaceship.mesh.add(exhaust);
+	  //var newMaterial = new THREE.MeshToonMaterial({color: Colors.darkkblue, emissive: Colors.darkkblue, wireframe:true});
+	 /*  spaceship.mesh.traverse((o) => {
 		if (o.isMesh) o.material = newMaterial;
-	  });
+	  });*/
 	  scene.add(gltf2.scene);	
 	  
   }, undefined, function ( error ) {
