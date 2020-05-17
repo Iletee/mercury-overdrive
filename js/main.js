@@ -552,6 +552,7 @@ var SpaceShip = function() {
 	this.mesh = new THREE.Object3D();
 	this.gltf;
 	this.bullets = [];
+	this.exhaust;
 
 
 }
@@ -570,16 +571,19 @@ function createShip(){
 	  spaceship.mesh.rotateY(3);
 	  spaceship.mesh.rotateZ(2);
 
-	  let exhaust = new THREE.Mesh(new THREE.CylinderGeometry(3,1,3,3,null,null,1), new THREE.MeshToonMaterial({
+	  spaceship.exhaust = new THREE.Mesh(new THREE.CylinderGeometry(1,1,32,5,null,null,1), new THREE.MeshToonMaterial({
 		color: Colors.pink,
-		emissive: Colors.pink,
+		emissive: Colors.darkorange,
+		emisiveIntensity: 0.5,
+		transparent:true,
 
 	}));
 
 	
-	exhaust.position.copy(spaceship.mesh.getWorldPosition()); // start position - the tip of the weapon
-	exhaust.position.z+=10;
-	spaceship.mesh.add(exhaust);
+	spaceship.exhaust.position.copy(spaceship.mesh.getWorldPosition()); // start position - the tip of the weapon
+	spaceship.exhaust.position.z+=1.5;
+	spaceship.exhaust.position.y+=15;
+	spaceship.mesh.add(spaceship.exhaust);
 	  //var newMaterial = new THREE.MeshToonMaterial({color: Colors.darkkblue, emissive: Colors.darkkblue, wireframe:true});
 	 /*  spaceship.mesh.traverse((o) => {
 		if (o.isMesh) o.material = newMaterial;
@@ -694,7 +698,9 @@ function cleanBullet(b){
 
 function updatePlane(){
 	//Load ship to update
-    var shipmesh = spaceship.mesh;
+	var shipmesh = spaceship.mesh;
+	var exhaust = spaceship.exhaust;
+	//console.log(exhaust);
 
    //Rotate ship axes based on mouse with ceiling values
    if (shipmesh.rotation.x > 0.8) shipmesh.rotation.x -= (GameLoopControls.MOUSEPOS.y / 250 ) *6; else shipmesh.rotation.x =0.81
@@ -713,7 +719,9 @@ function updatePlane(){
    camera.position.x += GameLoopControls.SPEED*4*Math.sin(shipmesh.rotation.y); 
    camera.position.z -=GameLoopControls.SPEED*Math.cos(shipmesh.rotation.z);
    camera.position.y -=GameLoopControls.SPEED*2*Math.cos(shipmesh.rotation.x);
- 
+
+   //exhaust.materials[0].transparent = true;
+   exhaust.material.opacity = 0 + GameLoopControls.SPEED*0.1 ;//or any other value you like
 }
 
 function normalize(v,vmin,vmax,tmin, tmax){
