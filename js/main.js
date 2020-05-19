@@ -1,8 +1,10 @@
 import * as THREE from '../node_modules/three/build/three.module.js'
-import { FlyControls } from '../node_modules/three/examples/jsm/controls/FlyControls.js';
+import { FlyControls } from './FlyControls.js';
+import { HeadsUpDisplay } from './HeadsUpDisplay.js';
+
 import  * as Howler from '../node_modules/howler/dist/howler.js';
 import { GLTFLoader } from '../node_modules/three/examples/jsm/loaders/GLTFLoader.js';
-import * as GameLoopControls from './controls.js';
+//import * as GameLoopControls from './controls.js';
 import { UnrealBloomPass } from '../node_modules/three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { EffectComposer } from '../node_modules/three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from '../node_modules/three/examples/jsm/postprocessing/RenderPass.js';
@@ -50,8 +52,9 @@ function init() {
 	createSky();
 	createHud();
     
-    //add the listenersw
-	controls = new GameLoopControls.GameLoopControls(window.innerHeight, window.innerWidth);
+	//add the listenersw
+	createControls();
+	//controls = new GameLoopControls.GameLoopControls(window.innerHeight, window.innerWidth);
 
 
     // Play music
@@ -63,7 +66,7 @@ function init() {
 
 				//Hide texts and present game
 				//createControls();
-				console.log(GameLoopControls.MOUSEPOS);
+				//console.log(GameLoopControls.MOUSEPOS);
 				spaceship.mesh.position.copy(camera.position);
 				spaceship.mesh.translateX(30);
 				spaceship.mesh.translateY(-15);
@@ -94,17 +97,6 @@ function init() {
     
 }
 
-var HeadsUpDisplay = function(){
-	//this.speedometer = document.createElement("div");
-	//this.speedometer.setAttribute("id", "speedo");
-	//this.speedometerElementId = "speedo";
-}
-
-HeadsUpDisplay.prototype.updateSpeed = function (speed){
-	//console.log("SPEEED ",speed);
-	var speedo = document.getElementById("speedo");
-	speedo.textContent = speed;
-}
 
 var hud;
 
@@ -209,17 +201,17 @@ function createScene() {
 
 //These are threes bulilt in controls well leave em here in case i want it again
 
-var flyControls;
+var flyControls, shipControls;
 
 function createControls(){
 
     flyControls = new FlyControls(camera, container);
-
+	//shipControls = new FlyControls(spaceship.mesh, container);
     flyControls.movementSpeed = 200;
     flyControls.domElement = container;
     flyControls.rollSpeed = Math.PI / 20;
     flyControls.autoForward = false;
-    flyControls.dragToLook = false;
+    flyControls.dragToLook = true;
 
     
 
@@ -589,14 +581,16 @@ function createShip(){
 		if (o.isMesh) o.material = newMaterial;
 	  });*/
 	  scene.add(gltf2.scene);	
+	 
 	  
   }, undefined, function ( error ) {
   
 	  console.error( error );
   
   } );
-  spaceship.mesh.rotation.order = "YXZ"; // 
-  
+  //spaceship.mesh.rotation.order = "YXZ"; // 
+ // camera.add(spaceship.mesh);
+  //spaceship.mesh.position.set(0,0,-100);
 
 }
 
@@ -616,16 +610,19 @@ function loop(){
 	// Rotate the propeller, the sea and the sky
 	//airplane.propeller.rotation.x += 0.3;
 	//sea.mesh.rotation.z += .01;
-    //sky.mesh.rotation.z += .003;
+	sky.mesh.rotation.z += .003;
+	shootBullets();
 
     var delta = clock.getDelta();
 
-    //flyControls.update(delta);
-    //sky.mesh.updateWaves();
+	//shipControls.update(delta);
+
+	flyControls.update(delta);
+   ;
     // render the scene
 	updateSky(clock.getElapsedTime());
 	updatePlane();
-	shootBullets();
+	
 	updateBullets(delta);
 	updatePlane();
 	updateHud();
@@ -649,12 +646,13 @@ function updateSky(time){
 
 // HUD Updater for many happy times
 function updateHud(){
-	hud.updateSpeed(GameLoopControls.SPEED);
+	hud.updateSpeed(flyControls.speed);
 }
 
 //And this is the BULLET FACTORY
 function shootBullets(){
-	if (GameLoopControls.BULLETS!=0){
+	console.log(flyControls.bullets, flyControls.movementSpeed);
+	if (flyControls.bullets==1){
 		let bullet = new THREE.Mesh(new THREE.CylinderGeometry(1,1,5,3,null,null,1), new THREE.MeshToonMaterial({
 			color: Colors.pink,
 			emissive: Colors.pink,
@@ -666,7 +664,7 @@ function shootBullets(){
 
 		bullet.position.copy(spaceship.mesh.getWorldPosition()); // start position - the tip of the weapon
 		bullet.rotation.copy(spaceship.mesh.quaternion); // apply camera's quaternion
-		//bullet.rotation.x+=Math.sin(spaceship.mesh.rotation.x);
+		bullet.rotation.x+=Math.sin(spaceship.mesh.rotation.x);
 		var mouseVector = new THREE.Vector3((GameLoopControls.MOUSEPOS.x)*-200, -GameLoopControls.MOUSEPOS.y*100,spaceship.mesh.position.z+(100));
 		bullet.lookAt(mouseVector);
 		
@@ -674,7 +672,7 @@ function shootBullets(){
 		spaceship.bullets.push(bullet);
 
 		//NO BULLETS TO SHOOT
-		GameLoopControls.setBullets(0);
+		flyControls.bullets=0;
 	}
 }
 
@@ -706,13 +704,23 @@ function updatePlane(){
 	var exhaust = spaceship.exhaust;
 	//console.log(exhaust);
 
-	var mouseVector = new THREE.Vector3(GameLoopControls.RAWMOUSE.x, GameLoopControls.RAWMOUSE.y,-10);
-	//mouseVector.applyQuaternion( worldQuaternion );
-	var sPos = new THREE.Vector3(shipmesh.position.x,shipmesh.position.y,shipmesh.position.z);
-	var quaternion = new THREE.Quaternion();
+	//var vec = new THREE.Vector3( 0, 0, -20 );
+	//vec.applyQuaternion( camera.quaternion );
+	
+	//shipmesh.position.copy( vec );
 
-	quaternion.setFromUnitVectors(sPos, mouseVector);
+	//quaternion.setFromUnitVectors(sPos, mouseVector);
+	shipmesh.position.copy(camera.position);
+	shipmesh.rotation.copy(camera.rotation);
+	shipmesh.quaternion.copy(camera.quaternion);
+	shipmesh.position.z-=30;
+	shipmesh.position.y-=10;
+	//shipmesh.rotateZ(1.3);
+	shipmesh.rotateY(Math.PI);
+	shipmesh.rotateX(Math.PI*1.5);
+	//shipmesh.position.y-=5;
 
+	
 	//console.log(quaternion);
    //Rotate ship axes based on mouse with ceiling values
   // if (shipmesh.rotation.x > 0.8) shipmesh.rotation.x -= (GameLoopControls.MOUSEPOS.y / 250 ) *6; else shipmesh.rotation.x =0.81
@@ -727,7 +735,7 @@ function updatePlane(){
    //if (shipmesh.rotation.y >2 ) shipmesh.rotation.y += (GameLoopControls.MOUSEPOS.x / 250 ) *4; else shipmesh.rotation.y=2.01
    //if (shipmesh.rotation.y < 4) shipmesh.rotation.y += (GameLoopControls.MOUSEPOS.x / 250 ) *4; else shipmesh.rotation.y=3.99
    
-   
+   /* not needed for non flycontrolks
 
    if (shipmesh.rotation.y >2 ) shipmesh.rotation.y += (GameLoopControls.COUNTX / 250 ) *4; else shipmesh.rotation.y=2.01
    if (shipmesh.rotation.y < 4) shipmesh.rotation.y += (GameLoopControls.COUNTX / 250 ) *4; else shipmesh.rotation.y=3.99
@@ -754,9 +762,9 @@ function updatePlane(){
    camera.position.y -=GameLoopControls.SPEED*1*Math.cos(shipmesh.rotation.x);
 
    //camera.lookAt(spaceship);
-
+*/
    //exhaust.materials[0].transparent = true;
-   exhaust.material.opacity = 0 + GameLoopControls.SPEED*0.1 ;//or any other value you like
+   exhaust.material.opacity = 0 + flyControls.speed*0.1 ;//or any other value you like
 
    //GameLoopControls.COUNTX=0;
    //GameLoopControls.COUNTY=0;
