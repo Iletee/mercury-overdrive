@@ -30,7 +30,7 @@ var params = {
 window.addEventListener('load', init, false);
 
 var clock;
-var bpm=129;
+var bpm=100;
 
 var state="start";
 var spacepressed=false;
@@ -58,8 +58,8 @@ function init() {
 
 
     // Play music
-    sound.once('load', function(){
-			   
+    bgm.once('load', function(){
+			bgm.play();
 				document.getElementById("loading").classList.add('hidden');
 
 				//document.getElementById("starter").classList.add('hidden');
@@ -80,9 +80,9 @@ function init() {
 				
 				//@todo put this to music manager
 				//@todo music manager 
-				sound.play();
+			
 				var music = document.getElementById("music");
-				music.textwContent="Max McFerren - The Boy Got Skills";
+				music.textwContent="Young Presidents - Night Drive Synthwave";
 				
 				loop();
 				document.getElementById("title").classList.add('hidden');
@@ -466,7 +466,8 @@ var sky;
 
 function createSky(){
 	sky = new Sky();
-    sky.mesh.position.y = -600;
+	sky.mesh.position.y = -600;
+	sky.mesh.position.z = -6000;
     sky.mesh.rotateY(1.57)
 	scene.add(sky.mesh);
 }
@@ -567,7 +568,7 @@ function createShip(){
 		color: Colors.pink,
 		emissive: Colors.darkorange,
 		emisiveIntensity: 0.5,
-		transparent:true,
+		transparent:true
 
 	}));
 
@@ -594,11 +595,11 @@ function createShip(){
 
 }
 
-var sound;
+var bgm;
 
 function createSound(){
-    sound = new Howl({
-        src: ['../assets/audio/The_Boy_Got_Skills.mp3']
+    bgm = new Howl({
+        src: ['../assets/audio/263_full_night-drive-synthwave_0168_preview.mp3']
       });
 }
 
