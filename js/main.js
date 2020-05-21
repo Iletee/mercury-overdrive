@@ -306,7 +306,7 @@ var Planet = function(){
 var Cloud = function(){
 	// Create an empty container that will hold the different parts of the cloud
 	this.mesh = new THREE.Object3D();
-	
+	this.hitbox = new THREE.Box3();
 	// create a cube geometry;
 	// this shape will be duplicated to create the cloud
 	var geom = new THREE.BoxGeometry(20,20,20);
@@ -407,7 +407,7 @@ var Sky = function(){
 	this.mesh = new THREE.Object3D();
 	
 	// choose a number of clouds to be scattered in the sky
-	this.nClouds = 160;
+	this.nClouds = 100;
 	
 	// To distribute the clouds consistently,
 	// we need to place them according to a uniform angle
@@ -545,7 +545,7 @@ var SpaceShip = function() {
 	this.gltf;
 	this.bullets = [];
 	this.exhaust;
-
+	this.hitbox = new THREE.Box3();
 
 }
 
@@ -606,19 +606,52 @@ function createSound(){
  * Main Loop
  */
 
+var raycaster = new THREE.Raycaster();
+var mouse = new THREE.Vector2();
+var shootingTarget;
+
+function onDocumentMouseDown( event ) {
+
+	console.log("AHA!")
+
+    event.preventDefault();
+
+    mouse.x = ( event.clientX / window.innerWidth ) * 2 - 1;
+    mouse.y = - ( event.clientY / window.innerHeight ) * 2 + 1; 
+
+	//scene.add(new THREE.ArrowHelper(raycaster.ray.direction, raycaster.ray.origin, 300, 0xff0000) );
+
+	raycaster.setFromCamera( mouse, camera );   
+
+
+    var intersects = raycaster.intersectObjects( scene.children, true );
+	//console.log(intersects.length, scene.children);
+    if ( intersects.length > 0 ) {
+
+		shootBullets(intersects[ 0 ].object);
+
+        if(typeof intersects[ 0 ].object.material.emissive != "undefined" ) intersects[ 0 ].object.material.emissive.setHex(Colors.pink);
+
+    }
+
+}
+
+document.addEventListener( 'mousedown', onDocumentMouseDown, false );
+
+var raycaster = new THREE.Raycaster();
 function loop(){
 	// Rotate the propeller, the sea and the sky
 	//airplane.propeller.rotation.x += 0.3;
 	//sea.mesh.rotation.z += .01;
 	sky.mesh.rotation.z += .003;
-	shootBullets();
+	//shootBullets();
 
     var delta = clock.getDelta();
 
 	//shipControls.update(delta);
 
 	flyControls.update(delta);
-   ;
+   
     // render the scene
 	updateSky(clock.getElapsedTime());
 	updatePlane();
@@ -627,6 +660,13 @@ function loop(){
 	updatePlane();
 	updateHud();
 
+	//RAYCASTING ENGAGE!!
+
+	// // update the picking ray with the camera and mouse position
+	// raycaster.setFromCamera( flyControls.mousePos, camera );
+
+	// // calculate objects intersecting the picking ray
+	
     composer.render(scene, camera);
 
 	// call the loop function again
@@ -649,45 +689,66 @@ function updateHud(){
 	hud.updateSpeed(flyControls.speed);
 }
 
+
+var Bullet = function() {
+	this.mesh =new THREE.Mesh(new THREE.CylinderGeometry(1,1,5,3,null,null,1), new THREE.MeshToonMaterial({
+		color: Colors.pink,
+		emissive: Colors.pink,
+		emissiveIntensity:3,
+		transparent: true,
+		opacity:1
+
+	}));
+	this.hitbox = new THREE.Box3();
+	this.direction = new THREE.Vector3();
+}
+
 //And this is the BULLET FACTORY
-function shootBullets(){
-	console.log(flyControls.bullets, flyControls.movementSpeed);
-	if (flyControls.bullets==1){
-		let bullet = new THREE.Mesh(new THREE.CylinderGeometry(1,1,5,3,null,null,1), new THREE.MeshToonMaterial({
-			color: Colors.pink,
-			emissive: Colors.pink,
-			emissiveIntensity:3,
-			transparent: true,
-			opacity:1
+function shootBullets(target){
+	//console.log(flyControls.bullets, flyControls.movementSpeed);
 
-		}));
+		let bullet = new Bullet();
 
-		bullet.position.copy(spaceship.mesh.getWorldPosition()); // start position - the tip of the weapon
-		bullet.rotation.copy(spaceship.mesh.quaternion); // apply camera's quaternion
-		bullet.rotation.x+=Math.sin(spaceship.mesh.rotation.x);
-		var mouseVector = new THREE.Vector3((GameLoopControls.MOUSEPOS.x)*-200, -GameLoopControls.MOUSEPOS.y*100,spaceship.mesh.position.z+(100));
-		bullet.lookAt(mouseVector);
+		bullet.mesh.position.copy(spaceship.mesh.getWorldPosition()); // start position - the tip of the weapon
+		bullet.mesh.rotation.copy(spaceship.mesh.quaternion); // apply camera's quaternion
+		//bullet.rotation.x+=Math.sin(spaceship.mesh.rotation.x);
+		bullet.direction = target.getWorldPosition();
+		console.log(bullet.direction);
 		
-		scene.add(bullet);
+		scene.add(bullet.mesh);
 		spaceship.bullets.push(bullet);
 
 		//NO BULLETS TO SHOOT
 		flyControls.bullets=0;
-	}
+	
 }
 
 function updateBullets(delta){
-	var speed = 2400;
+	var speed = 100;
 	spaceship.bullets.forEach(b => {
-		b.translateZ(-speed *delta); // move along the local z-axis
-		var bPos = new THREE.Vector3(b.position.x,b.position.y,b.position.z);
+		var group = new THREE.Group();
+		//group.add(b.mesh);
+		//console.log(b.mesh.position);
+		var targetNormalizedVector = new THREE.Vector3(0,0,0);
+		targetNormalizedVector.x = b.direction.x - b.mesh.position.x;
+		targetNormalizedVector.y = b.direction.y - b.mesh.position.y;
+		targetNormalizedVector.z = b.direction.z - b.mesh.position.z;
+		targetNormalizedVector.normalize();
+		b.mesh.translateOnAxis(targetNormalizedVector,speed);
+		//b.translateZ(-speed *delta); // move along the local z-axis
+		//var vector = b.direction.multiplyScalar( speed, speed, speed );
+		//b.mesh.translateX(vector.x);
+		//b.mesh.translateY(vector.y);
+		//b.mesh.translateZ(vector.z);
+
+		var bPos = new THREE.Vector3(b.mesh.position.x,b.mesh.position.y,b.mesh.position.z);
 		var sPos = new THREE.Vector3(spaceship.mesh.position.x,spaceship.mesh.position.y,spaceship.mesh.position.z);
 		if (bPos.distanceTo(sPos) >2000) cleanBullet(b);
 	  });
 }
 
 function cleanBullet(b){
-	
+	console.log("cleaning");
 	scene.remove(b);
 	const index = spaceship.bullets.indexOf(b);
 	if (index > -1) {

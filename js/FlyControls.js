@@ -4,7 +4,8 @@
 
 import {
 	Quaternion,
-	Vector3
+	Vector3,
+	Vector2
 } from "../node_modules/three/build/three.module.js";
 
 var FlyControls = function ( object, domElement ) {
@@ -27,7 +28,7 @@ var FlyControls = function ( object, domElement ) {
 	this.rollSpeed = 0.005;
 	this.dragToLook = false;
 	this.autoForward = false;
-	this.bullets = 0;
+	this.bullets = 1;
 	this.speed = 0;
 
 	// disable default target object behavior
@@ -41,6 +42,8 @@ var FlyControls = function ( object, domElement ) {
 
 	this.moveState = { up: 0, down: 0, left: 0, right: 0, forward: 0, back: 0, pitchUp: 0, pitchDown: 0, yawLeft: 0, yawRight: 0, rollLeft: 0, rollRight: 0 };
 	this.moveVector = new Vector3( 0, 0, 0 );
+	this.mouseVector = new Vector3( 0, 0, 0 );
+	this.mousePos  = new Vector2(0,0,0);
 	this.rotationVector = new Vector3( 0, 0, 0 );
 
 	this.keydown = function ( event ) {
@@ -128,7 +131,7 @@ var FlyControls = function ( object, domElement ) {
 		
 
 		if ( this.dragToLook ) {
-
+			this.bullets=1; 
 			this.mouseStatus ++;
 
 		} else {
@@ -150,7 +153,11 @@ var FlyControls = function ( object, domElement ) {
 
 	this.mousemove = function ( event ) {
 
-		if ( ! this.dragToLook || this.mouseStatus > 0 ) {
+		if (  this.dragToLook || this.mouseStatus > 0 ) {
+			
+		
+			document.getElementById("aiming").style.left = event.clientX-50+"px";
+			document.getElementById("aiming").style.top = event.clientY-50+"px";
 
 			var container = this.getContainerDimensions();
 			var halfWidth = container.size[ 0 ] / 2;
@@ -158,19 +165,32 @@ var FlyControls = function ( object, domElement ) {
 
 			this.moveState.yawLeft = - ( ( event.pageX - container.offset[ 0 ] ) - halfWidth ) / halfWidth;
 			this.moveState.pitchDown = ( ( event.pageY - container.offset[ 1 ] ) - halfHeight ) / halfHeight;
+		
+
+			this.mousePos.x = ( event.clientX / window.innerWidth ) * 2 - 1;
+			this.mousePos.y = - ( event.clientY / window.innerHeight ) * 2 + 1;
 
 			this.updateRotationVector();
 
-		
+	
 
 		}
-		document.getElementById("aiming").style.left = event.clientX-50+"px";
-		document.getElementById("aiming").style.top = event.clientY-50+"px";
-		
+	//	this.bullets=1;
+		//console.log("SHOIIIt");
+
 
 	};
 
+	this.clicker = function ( event ) {
+
+		this.bullets=1;
+		//console.log("SHOIIIt");
+
+	};
+
+
 	this.mouseup = function ( event ) {
+		
 		
 		event.preventDefault();
 		event.stopPropagation();
@@ -180,12 +200,13 @@ var FlyControls = function ( object, domElement ) {
 			this.mouseStatus --;
 
 			this.moveState.yawLeft = this.moveState.pitchDown = 0;
+			
 
 		} else {
 
 			switch ( event.button ) {
 
-				case 0: this.moveState.forward = 0;  break;
+				case 0: this.moveState.forward = 0; this.bullets=1;  break;
 				case 2: this.moveState.back = 0; break;
 
 			}
@@ -291,12 +312,14 @@ var FlyControls = function ( object, domElement ) {
 	var _mouseup = bind( this, this.mouseup );
 	var _keydown = bind( this, this.keydown );
 	var _keyup = bind( this, this.keyup );
+	var _clicker =bind(this, this.clicker);
 
 	this.domElement.addEventListener( 'contextmenu', contextmenu, false );
 
 	this.domElement.addEventListener( 'mousemove', _mousemove, false );
 	this.domElement.addEventListener( 'mousedown', _mousedown, false );
 	this.domElement.addEventListener( 'mouseup', _mouseup, false );
+	this.domElement.addEventListener ( 'click', _clicker, false  )
 
 	window.addEventListener( 'keydown', _keydown, false );
 	window.addEventListener( 'keyup', _keyup, false );
