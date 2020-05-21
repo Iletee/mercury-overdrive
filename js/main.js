@@ -1,6 +1,8 @@
 import * as THREE from '../node_modules/three/build/three.module.js'
 import { FlyControls } from './FlyControls.js';
 import { HeadsUpDisplay } from './HeadsUpDisplay.js';
+import { LevelAudioManager } from './audio.js';
+
 
 import  * as Howler from '../node_modules/howler/dist/howler.js';
 import { GLTFLoader } from '../node_modules/three/examples/jsm/loaders/GLTFLoader.js';
@@ -58,8 +60,8 @@ function init() {
 
 
     // Play music
-    bgm.once('load', function(){
-			bgm.play();
+    audiomanager.bmg.once('load', function(){
+				audiomanager.bmg.play();
 				document.getElementById("loading").classList.add('hidden');
 
 				//document.getElementById("starter").classList.add('hidden');
@@ -82,7 +84,7 @@ function init() {
 				//@todo music manager 
 			
 				var music = document.getElementById("music");
-				music.textwContent="Young Presidents - Night Drive Synthwave";
+				music.textContent=audiomanager.bmgName;
 				
 				loop();
 				document.getElementById("title").classList.add('hidden');
@@ -595,14 +597,12 @@ function createShip(){
 
 }
 
-var bgm;
+var audiomanager;
 
 function createSound(){
-    bgm = new Howl({
-        src: ['../assets/audio/263_full_night-drive-synthwave_0168_preview.mp3']
-      });
+	audiomanager = new LevelAudioManager();
+	audiomanager.loadLevelAudio();
 }
-
 /**
  * Main Loop
  */
@@ -676,13 +676,13 @@ function loop(){
 
 var previoustime
 function updateSky(time){
-   var beats = time*100;
-   beats = beats.toFixed(0)
-   var divisor=6000/bpm/24;
-   divisor = divisor.toFixed(0)
+   var beats = time;
+   var divisor=60/bpm;
+  
   // console.log(beats%46)
    //todo bpm manager
-   if (beats%divisor==0) sky.moveWaves();
+   console.log((beats/bpm)%divisor);
+   if (((beats/bpm)%divisor)==0) sky.moveWaves();
 }
 
 // HUD Updater for many happy times
@@ -707,6 +707,7 @@ var Bullet = function() {
 //And this is the BULLET FACTORY
 function shootBullets(target){
 	//console.log(flyControls.bullets, flyControls.movementSpeed);
+		console.log(typeof target);
 
 		let bullet = new Bullet();
 
@@ -718,6 +719,9 @@ function shootBullets(target){
 		
 		scene.add(bullet.mesh);
 		spaceship.bullets.push(bullet);
+
+		//Play PEW
+		audiomanager.laser.play();
 
 		//NO BULLETS TO SHOOT
 		flyControls.bullets=0;
