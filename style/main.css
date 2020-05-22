@@ -110,13 +110,15 @@
 #title {
 	z-index:20;
 	position: fixed;
+	white-space: nowrap;	
+	letter-spacing: 20%;
 	top: 30%;
 	left: 50%;
 	/* bring your own prefixes */
 	transform: translate(-50%, -50%);
 	font-family: 'Lazer84';
 	font-weight: 1800;
-	font-size: 500%;
+	font-size: 800%;
 	color: white;
     text-transform: as;
     transition-duration: 1s;
