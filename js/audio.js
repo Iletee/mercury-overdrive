@@ -10,11 +10,12 @@ var LevelAudioManager = function(){
 
 LevelAudioManager.prototype.loadLevelAudio = function (){
 	this.bmg = new Howl({
-        src: ['../assets/audio/263_full_night-drive-synthwave_0168_preview.mp3']
+        src: ['../assets/audio/263_full_night-drive-synthwave_0168_preview.mp3'],
+        loop:true
       });
     
       this.laser = new Howl({
-        src: ['../assets/audio/effects/laser6.ogg']
+        src: ['../assets/audio/effects/laser6a.ogg']
       });
 
     };
