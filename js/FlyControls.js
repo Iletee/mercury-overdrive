@@ -29,7 +29,7 @@ var FlyControls = function ( object, domElement ) {
 	this.dragToLook = false;
 	this.autoForward = false;
 	this.bullets = 1;
-	this.speed = 0;
+	this.speed = 1;
 
 	// disable default target object behavior
 
@@ -152,6 +152,9 @@ var FlyControls = function ( object, domElement ) {
 	};
 
 	this.mousemove = function ( event ) {
+		
+		document.getElementById("aiming").style.left = event.clientX-50+"px";
+		document.getElementById("aiming").style.top = event.clientY-50+"px";
 
 		if (  this.dragToLook || this.mouseStatus > 0 ) {
 			

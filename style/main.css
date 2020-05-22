@@ -169,12 +169,14 @@
 }
 
 #music {
-	bottom: 150px;
-	right: 100px;
+	bottom: 200px;
+	right: 300px;
 	width: 300px;
 	z-index:20;
 	font-weight: 1800;
 	font-size:100%;
+	transform: skew(5deg, 10deg);
+	white-space: nowrap;
 	position: fixed;
 	font-family: 'Disco';
 	color: white;

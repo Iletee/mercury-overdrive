@@ -3,6 +3,7 @@ import { FlyControls } from './FlyControls.js';
 import { HeadsUpDisplay } from './HeadsUpDisplay.js';
 import { LevelAudioManager } from './audio.js';
 import { Sky, Cloud, Planet } from './spaceprops.js';
+import { Colors } from './store.js';
 
 import  * as Howler from '../node_modules/howler/dist/howler.js';
 import { GLTFLoader } from '../node_modules/three/examples/jsm/loaders/GLTFLoader.js';
@@ -12,16 +13,8 @@ import { EffectComposer } from '../node_modules/three/examples/jsm/postprocessin
 import { RenderPass } from '../node_modules/three/examples/jsm/postprocessing/RenderPass.js';
 //import { BloomPass } from './node_modules/three/examples/jsm/postprocessing/BloomPass.js';
 
-var Colors = {
-	darkkblue:0x0d0221,
-	grayblue:0x261447,
-	turqoise:0x2DE2E6,
-	pink:0xFF3864,
-    orange:0xFF6C11,
-    lightorange:0xff9011,
-    darkorange:0xc9550c,
-	gray:0x241734,
-};
+var collidableMesh=[];
+
 var params = {
 	exposure: 0.8,
 	bloomStrength: 1.0,
@@ -84,21 +77,16 @@ function init() {
 				//@todo music manager 
 			
 				var music = document.getElementById("music");
-				music.textContent=audiomanager.bmgName;
+				music.textContent=audiomanager.bgmName;
 				
 				loop();
 				document.getElementById("title").classList.add('hidden');
 				document.getElementById("music").classList.add('hidden-slow');
-
-		 
 	
       });
 	// start a loop that will update the objects' positions 
-	// and render the scene on each frame
-    
-    
+	// and render the scene on each frame    
 }
-
 
 var hud;
 
@@ -233,7 +221,7 @@ function createLights() {
 
 	// Set the direction of the light  
 	// should make a sun in this place.
-	shadowLight.position.set(150, 350, 350);
+	shadowLight.position.set(1550, 2550, 3250);
 	
 	// Allow shadow casting 
 	shadowLight.castShadow = true;
@@ -268,6 +256,10 @@ function createSky(){
 	sky.mesh.position.z = -6000;
     sky.mesh.rotateY(1.57)
 	scene.add(sky.mesh);
+
+	sky.clouds.forEach(c =>{
+		collidableMesh.push(c.mesh);
+	})
 }
 
 /* Yeah so this bit is horrible but cant help it right this moment */
@@ -289,7 +281,7 @@ function createShip(){
   loader.load( '../assets/models/nave_inimiga/scene.gltf', function (gltf2){
 	  // get the vertices
 	  spaceship.gltf=gltf2;
-	  console.log(gltf2);
+	  //console.log(gltf2);
 	  spaceship.mesh=gltf2.scene.children[0];
 	  spaceship.mesh.rotateY(3);
 	  spaceship.mesh.rotateZ(2);
@@ -307,11 +299,15 @@ function createShip(){
 	spaceship.exhaust.position.z+=1.5;
 	spaceship.exhaust.position.y+=15;
 	spaceship.mesh.add(spaceship.exhaust);
+	
 	  //var newMaterial = new THREE.MeshToonMaterial({color: Colors.darkkblue, emissive: Colors.darkkblue, wireframe:true});
-	 /*  spaceship.mesh.traverse((o) => {
-		if (o.isMesh) o.material = newMaterial;
-	  });*/
+	  spaceship.mesh.traverse((o) => {
+		if (o.isMesh){o.material.emissive.setHex(Colors.pink); o.material.emissiveIntensity= 1;}
+
+		
+	  });
 	  scene.add(gltf2.scene);	
+	  //spaceship.mesh.material.emissive.setHex(Colors.pink);
 	 
 	  
   }, undefined, function ( error ) {
@@ -319,6 +315,8 @@ function createShip(){
 	  console.error( error );
   
   } );
+
+  
 
 }
 
@@ -338,7 +336,7 @@ var shootingTarget;
 
 function onDocumentMouseDown( event ) {
 
-	console.log("AHA!")
+	//console.log("AHA!")
 
     event.preventDefault();
 
@@ -354,9 +352,11 @@ function onDocumentMouseDown( event ) {
 
 		shootBullets(intersects[ 0 ].object);
 
-        if(typeof intersects[ 0 ].object.material.emissive != "undefined" ) intersects[ 0 ].object.material.emissive.setHex(Colors.pink);
+        //if(typeof intersects[ 0 ].object.material.emissive != "undefined" )  intersects[ 0 ].object.material.emissive.setHex(Colors.pink);
 
-    }
+    } else{ 
+		shootBullets(new THREE.Vector3(spaceship.mesh.position.x,spaceship.mesh.position.y,spaceship.mesh.position.z-3000));
+	}
 
 }
 
@@ -365,7 +365,7 @@ document.addEventListener( 'mousedown', onDocumentMouseDown, false );
 var raycaster = new THREE.Raycaster();
 function loop(){
 	// Rotate the propeller, the sea and the sky
-	sky.mesh.rotation.z += .003;
+	//sky.mesh.rotation.z += .003;
 	//shootBullets();
 
     var delta = clock.getDelta();
@@ -380,6 +380,9 @@ function loop(){
 	updatePlane();
 	updateHud();
 	
+/* This is where the level logic needs to go 
+*/
+
     composer.render(scene, camera);
 
 	// call the loop function again
@@ -391,7 +394,7 @@ function updateSky(time){
 
    var beats = time*1000;
    var divisor=60/bpm*10;
-   console.log(beats,divisor);
+   //console.log(beats,divisor);
   // console.log(beats%46)
    //todo bpm manager
    if (beats%divisor==0) sky.moveWaves();
@@ -419,29 +422,33 @@ var Bullet = function() {
 //And this is the BULLET FACTORY
 function shootBullets(target){
 	//console.log(flyControls.bullets, flyControls.movementSpeed);
-		console.log(typeof target);
+		//console.log(target);
 
 		let bullet = new Bullet();
 
 		bullet.mesh.position.copy(spaceship.mesh.getWorldPosition()); // start position - the tip of the weapon
 		bullet.mesh.rotation.copy(spaceship.mesh.quaternion); // apply camera's quaternion
 		//bullet.rotation.x+=Math.sin(spaceship.mesh.rotation.x);
-		bullet.direction = target.getWorldPosition();
-		console.log(bullet.direction);
+		try {
+			bullet.direction = target.getWorldPosition();
+		} catch(err){
+			bullet.direction =target;
+		}
+
+		//console.log(bullet.direction);
 		
 		scene.add(bullet.mesh);
 		spaceship.bullets.push(bullet);
 
 		//Play PEW
 		audiomanager.laser.play();
-
-		//NO BULLETS TO SHOOT
-		flyControls.bullets=0;
 	
 }
 
 function updateBullets(delta){
 	var speed = 100;
+
+	
 	spaceship.bullets.forEach(b => {
 		var group = new THREE.Group();
 		//group.add(b.mesh);
@@ -456,16 +463,51 @@ function updateBullets(delta){
 		var bPos = new THREE.Vector3(b.mesh.position.x,b.mesh.position.y,b.mesh.position.z);
 		var sPos = new THREE.Vector3(spaceship.mesh.position.x,spaceship.mesh.position.y,spaceship.mesh.position.z);
 		if (bPos.distanceTo(sPos) >2000) cleanBullet(b);
-	  });
+
+		//finally lets check if it hit anything
+		var originPoint = b.mesh.position.clone();
+	
+		for (var vertexIndex = 0; vertexIndex < b.mesh.geometry.vertices.length; vertexIndex++)
+		{		
+			var localVertex = b.mesh.geometry.vertices[vertexIndex].clone();
+			var globalVertex = localVertex.applyMatrix4( b.mesh.matrix );
+			var directionVector = globalVertex.sub( b.mesh.position );
+			
+			var ray = new THREE.Raycaster( originPoint, directionVector.clone().normalize() );
+			var collisionResults = ray.intersectObjects( collidableMesh, true );
+
+			if ( collisionResults.length > 0 && collisionResults[0].distance < directionVector.length() ) {
+				console.log(" Hit ");
+				if(typeof collisionResults[ 0 ].object.material.emissive != "undefined" ){ 
+					collisionResults[ 0 ].object.material.emissive.setHex(Colors.gray);
+					cleanBullet(b);
+
+					var deadObject = function(){this.mesh;};
+					deadObject.mesh=collisionResults[ 0 ].object;
+					cleanBullet(deadObject);
+				}
+			}
+				//cleanBullet(b);
+
+		}	
+		});
+
+		// this is where enemy bullets should move and test
+
 }
 
 function cleanBullet(b){
-	console.log("cleaning");
-	scene.remove(b);
+	//console.log("cleaning");
+	
+	b.mesh.geometry.dispose();
+	b.mesh.material.dispose();
+	scene.remove(b.mesh);
+
 	const index = spaceship.bullets.indexOf(b);
 	if (index > -1) {
 		spaceship.bullets.splice(index, 1);
 	}
+	renderer.renderLists.dispose();
 
 }
 

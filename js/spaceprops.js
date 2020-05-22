@@ -4,7 +4,7 @@ import { Colors } from './store.js';
 var Planet = function(){
 	this.mesh = new THREE.Object3D()
 	var geom = new THREE.SphereGeometry(200,50,50);
-	var material = new THREE.MeshToonMaterial( {color: Colors.darkkblue, emissive: Colors.darkkblue} );
+	var material = new THREE.MeshToonMaterial( {color: Colors.turqoise, emissive: Colors.darkorange} );
 	this.mesh = new THREE.Mesh( geom, material );
 }
 
@@ -151,7 +151,8 @@ var Sky = function(){
 		// do not forget to add the mesh of each cloud in the scene
 		this.mesh.add(c.mesh);  
 	}  
-	var planet = new Planet();
+    var planet = new Planet();
+    planet.mesh.position.set(1550, 2550, 3250);
 	this.mesh.add(planet.mesh)
 }
 
