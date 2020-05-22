@@ -3,9 +3,10 @@ import { Colors } from './store.js';
 
 var Planet = function(){
 	this.mesh = new THREE.Object3D()
-	var geom = new THREE.SphereGeometry(200,50,50);
+    var geom = new THREE.SphereGeometry(200,50,50);
+    
 	var material = new THREE.MeshToonMaterial( {color: Colors.turqoise, emissive: Colors.darkorange} );
-	this.mesh = new THREE.Mesh( geom, material );
+    this.mesh = new THREE.Mesh( geom, material );    
 }
 
 
