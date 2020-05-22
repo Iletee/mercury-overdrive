@@ -2,6 +2,11 @@
 	font-family: 'Disco';
 	src: url('../assets/font/DISCO.ttf') format('truetype'); 
 }
+
+@font-face {
+	font-family: 'Lazer84';
+	src: url('../assets/font/lazer84/LAZER-84/Lazer84.ttf') format('truetype'); 
+}
 /* found from https://codepen.io/markheggan/pen/LjrVYN */
 @keyframes neon {
 	from {
