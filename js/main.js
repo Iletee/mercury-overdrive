@@ -11,6 +11,7 @@ import { GLTFLoader } from '../node_modules/three/examples/jsm/loaders/GLTFLoade
 import { UnrealBloomPass } from '../node_modules/three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { EffectComposer } from '../node_modules/three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from '../node_modules/three/examples/jsm/postprocessing/RenderPass.js';
+import { GameLoopControls } from './controls.js';
 //import { BloomPass } from './node_modules/three/examples/jsm/postprocessing/BloomPass.js';
 
 var collidableMesh=[];
@@ -26,8 +27,7 @@ window.addEventListener('load', init, false);
 
 var clock;
 var bpm=100;
-
-var state="start";
+var state=1;
 var spacepressed=false;
 var controls;
 
@@ -350,12 +350,12 @@ function onDocumentMouseDown( event ) {
     var intersects = raycaster.intersectObjects( scene.children, true );
     if ( intersects.length > 0 ) {
 
-		shootBullets(intersects[ 0 ].object);
+		shootBullets(intersects[ 0 ].object, spaceship);
 
         //if(typeof intersects[ 0 ].object.material.emissive != "undefined" )  intersects[ 0 ].object.material.emissive.setHex(Colors.pink);
 
     } else{ 
-		shootBullets(new THREE.Vector3(spaceship.mesh.position.x,spaceship.mesh.position.y,spaceship.mesh.position.z-3000));
+		shootBullets(new THREE.Vector3(spaceship.mesh.position.x,spaceship.mesh.position.y,spaceship.mesh.position.z-3000), spaceship);
 	}
 
 }
@@ -379,6 +379,14 @@ function loop(){
 	updateBullets(delta);
 	updatePlane();
 	updateHud();
+
+	checkProgression();
+
+	if(state==2){
+		//console.log("PHASE 1");
+		createEnemy();
+		updateEnemy(delta);
+	}
 	
 /* This is where the level logic needs to go 
 */
@@ -420,14 +428,14 @@ var Bullet = function() {
 }
 
 //And this is the BULLET FACTORY
-function shootBullets(target){
+function shootBullets(target, shooter){
 	//console.log(flyControls.bullets, flyControls.movementSpeed);
 		//console.log(target);
 
 		let bullet = new Bullet();
 
-		bullet.mesh.position.copy(spaceship.mesh.getWorldPosition()); // start position - the tip of the weapon
-		bullet.mesh.rotation.copy(spaceship.mesh.quaternion); // apply camera's quaternion
+		bullet.mesh.position.copy(shooter.mesh.getWorldPosition()); // start position - the tip of the weapon
+		bullet.mesh.rotation.copy(shooter.mesh.quaternion); // apply camera's quaternion
 		//bullet.rotation.x+=Math.sin(spaceship.mesh.rotation.x);
 		try {
 			bullet.direction = target.getWorldPosition();
@@ -527,9 +535,18 @@ function updatePlane(){
 	shipmesh.rotateY(Math.PI);
 	shipmesh.rotateX(Math.PI*1.5);
 
-  	 exhaust.material.opacity = 0 + flyControls.speed*0.1 ;//or any other value you like
+  	exhaust.material.opacity = 0 + flyControls.speed*0.1 ;//or any other value you like
+}
 
-   
+function checkProgression(){
+	var bPos = new THREE.Vector3(0.0,0);
+	var sPos = new THREE.Vector3(spaceship.mesh.position.x,spaceship.mesh.position.y,spaceship.mesh.position.z);
+		
+	//console.log(bPos.distanceTo(sPos));
+
+		if(state==1){ 
+			if (bPos.distanceTo(sPos) >8000){ state+=1; }
+		}
 }
 
 function normalize(v,vmin,vmax,tmin, tmax){
@@ -537,5 +554,71 @@ function normalize(v,vmin,vmax,tmin, tmax){
 	var nv = Math.max(Math.min(v,vmax), vmin);
 	var dv = vmax-vmin;
 	var pc = (nv-vmin)/dv;
+
+}
+
+var enemy;
+var enemies=[];
+var enemycount=0;
+
+function createEnemy(position, hp){
+		//console.log("enemy time");
+		if(enemycount < 2 ){
+		enemy = new SpaceShip(); 
+	
+		var loader = new GLTFLoader();
+		loader.load( '../assets/models/nave_inimiga/scene.gltf', function (gltf2){
+			// get the vertices
+			enemy.gltf=gltf2;
+			//console.log(gltf2);
+			enemy.mesh=gltf2.scene.children[0];
+			//enemy.mesh.rotateY(3);
+			//enemy.mesh.rotateZ(2);
+	
+			enemy.exhaust = new THREE.Mesh(new THREE.CylinderGeometry(1,1,32,5,null,null,1), new THREE.MeshToonMaterial({
+			color: Colors.darkkblue,
+			emissive: Colors.gray,
+			emisiveIntensity: 0.5,
+			transparent:true
+
+		}));
+	
+		
+		enemy.exhaust.position.copy(enemy.mesh.getWorldPosition()); // start position - the tip of the weapon
+		enemy.exhaust.position.z+=1.5;
+		enemy.exhaust.position.y+=15;
+		enemy.mesh.add(spaceship.exhaust);
+		
+			//var newMaterial = new THREE.MeshToonMaterial({color: Colors.darkkblue, emissive: Colors.darkkblue, wireframe:true});
+			enemy.mesh.traverse((o) => {
+			if (o.isMesh){o.material.emissive.setHex(Colors.darkkblue); o.material.emissiveIntensity= 1;}
+			});
+
+			enemy.mesh.position.copy(spaceship.mesh.getWorldPosition());
+			enemy.mesh.position.z-=300;
+			collidableMesh.push(enemy.mesh);
+			enemies.push(enemy);
+			scene.add(gltf2.scene);	
+			//spaceship.mesh.material.emissive.setHex(Colors.pink);
+		
+			
+		}, undefined, function ( error ) {
+		
+			console.error( error );
+		
+		} );
+
+	enemycount+=1;
+	}
+}
+
+function updateEnemy(delta){
+	enemies.forEach(e => {
+		e.mesh.position.copy(spaceship.mesh.getWorldPosition());
+		e.mesh.position.z-=100;
+		var bPos = new THREE.Vector3(e.mesh.position.x,e.mesh.position.y,e.mesh.position.z);
+		var sPos = new THREE.Vector3(spaceship.mesh.position.x,spaceship.mesh.position.y,spaceship.mesh.position.z);
+		if (bPos.distanceTo(sPos) < 500) console.log("i should atttack");
+	})
 
 }
