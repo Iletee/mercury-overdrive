@@ -270,6 +270,10 @@ var SpaceShip = function() {
 	this.exhaust;
 	this.hitbox = new THREE.Box3();
 
++	this.actiontimestamp;
+	this.offsetx=0;
+	this.offsety=0;
+
 }
 
 var spaceship;
@@ -446,7 +450,8 @@ function shootBullets(target, shooter){
 		//console.log(bullet.direction);
 		
 		scene.add(bullet.mesh);
-		spaceship.bullets.push(bullet);
+		shooter.bullets.push(bullet);
+		//console.log("shooting ",shooter.bullets.length)
 
 		//Play PEW
 		audiomanager.laser.play();
@@ -454,7 +459,7 @@ function shootBullets(target, shooter){
 }
 
 function updateBullets(delta){
-	var speed = 100;
+	var speed = 50;
 
 	
 	spaceship.bullets.forEach(b => {
@@ -554,18 +559,20 @@ function normalize(v,vmin,vmax,tmin, tmax){
 	var nv = Math.max(Math.min(v,vmax), vmin);
 	var dv = vmax-vmin;
 	var pc = (nv-vmin)/dv;
+	var dt = tmax-tmin;
+	var tv = tmin + (pc*dt);
+	return tv;
 
 }
 
-var enemy;
 var enemies=[];
 var enemycount=0;
 
 function createEnemy(position, hp){
-		//console.log("enemy time");
-		if(enemycount < 2 ){
-		enemy = new SpaceShip(); 
-	
+		if(enemycount < 1 ){
+		var enemy = new SpaceShip(); 
+		console.log("enemy time");
+
 		var loader = new GLTFLoader();
 		loader.load( '../assets/models/nave_inimiga/scene.gltf', function (gltf2){
 			// get the vertices
@@ -596,6 +603,7 @@ function createEnemy(position, hp){
 
 			enemy.mesh.position.copy(spaceship.mesh.getWorldPosition());
 			enemy.mesh.position.z-=300;
+			enemy.mesh.position.y+=Math.random()*Math.PI;
 			collidableMesh.push(enemy.mesh);
 			enemies.push(enemy);
 			scene.add(gltf2.scene);	
@@ -612,13 +620,66 @@ function createEnemy(position, hp){
 	}
 }
 
+function degrees_to_radians(degrees)
+{
+  var pi = Math.PI;
+  return degrees * (pi/180);
+}
+var t = 0;
 function updateEnemy(delta){
 	enemies.forEach(e => {
+		var angle = 100;
+		var radius =100;
+		var angleSpeed = 0.22;
+		var radialSpeed = 0.5;
+		
 		e.mesh.position.copy(spaceship.mesh.getWorldPosition());
-		e.mesh.position.z-=100;
+		e.mesh.position.z-=100*flyControls.speed;
+		//e.mesh.lookAt(spaceship.mesh)
+
+		//console.log(e.mesh.position, )
+		//console.log(delta, angleSpeed, radialSpeed,Math.random(normalize(Math.random(),0,1,-1000,1000)))
+		angle += delta * angleSpeed * normalize(Math.random(),0,1,-1000,1000);
+   		radius -= delta * radialSpeed * normalize(Math.random(),0,1,-1000,1000);
+
+		console.log(angle,delta)
+		//var offsety=Math.random()*Math.sin(Math.PI);
+		//var offsetx=Math.random()*+Math.sin(Math.PI);
+
+		//var h = 750 + Math.random()*200; // this is the distance between the center of the axis and the cloud itself
+
+		// Trigonometry!!! I hope you remember what you've learned in Math :)
+		// in case you don't: 
+		// we are simply converting polar coordinates (angle, distance) into Cartesian coordinates (x, y)
+
+		//e.offsety+=Math.pow(2, e.offsetx/2) * delta;w
+		t += 0.02;          
+		e.offsetx =  20*Math.cos(t) + 0;
+		e.offsety = 20*Math.sin(t) + 0;
+
+		console.log(e.offsetx,e.offsety)
+    
+		e.mesh.position.y += e.offsety;
+        e.mesh.position.x += e.offsetx;
+		
+		
+    
+
+	
 		var bPos = new THREE.Vector3(e.mesh.position.x,e.mesh.position.y,e.mesh.position.z);
 		var sPos = new THREE.Vector3(spaceship.mesh.position.x,spaceship.mesh.position.y,spaceship.mesh.position.z);
-		if (bPos.distanceTo(sPos) < 500) console.log("i should atttack");
+
+		if (bPos.distanceTo(sPos) < 500){
+			//TODO> Something
+			if(e.bullets.length<3){
+				shootBullets(spaceship,e);
+			}
+		if (bPos.distanceTo(sPos) < 3000){
+			//cleanBullet(e);
+		}
+			//when the player gets near enough do something
+		}
+
 	})
 
 }
