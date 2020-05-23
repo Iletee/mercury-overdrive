@@ -654,7 +654,7 @@ function updateEnemy(delta){
 		// we are simply converting polar coordinates (angle, distance) into Cartesian coordinates (x, y)
 
 		//e.offsety+=Math.pow(2, e.offsetx/2) * delta;w
-		t += 0.01;          
+		t += 0.004;          
 		e.offsetx = Math.cos(t) + 0;
 		e.offsety = Math.sin(t) + 0;
 
