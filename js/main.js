@@ -491,6 +491,7 @@ function updateBullets(delta){
 
 			if ( collisionResults.length > 0 && collisionResults[0].distance < directionVector.length() ) {
 				console.log(" Hit ");
+				audiomanager.sprites.play('drum1');
 				if(typeof collisionResults[ 0 ].object.material.emissive != "undefined" ){ 
 					collisionResults[ 0 ].object.material.emissive.setHex(Colors.gray);
 					cleanBullet(b);
@@ -504,8 +505,6 @@ function updateBullets(delta){
 
 		}	
 		});
-
-		// this is where enemy bullets should move and test
 
 }
 
@@ -625,6 +624,7 @@ function degrees_to_radians(degrees)
   var pi = Math.PI;
   return degrees * (pi/180);
 }
+
 var t = 0;
 function updateEnemy(delta){
 	enemies.forEach(e => {
