@@ -568,7 +568,7 @@ var enemies=[];
 var enemycount=0;
 
 function createEnemy(position, hp){
-		if(enemycount < 1 ){
+		if(enemycount < 3 ){
 		var enemy = new SpaceShip(); 
 		console.log("enemy time");
 
@@ -592,7 +592,7 @@ function createEnemy(position, hp){
 		
 		enemy.exhaust.position.copy(enemy.mesh.getWorldPosition()); // start position - the tip of the weapon
 		enemy.exhaust.position.z+=1.5;
-		enemy.exhaust.position.y+=15;
+		
 		enemy.mesh.add(spaceship.exhaust);
 		
 			//var newMaterial = new THREE.MeshToonMaterial({color: Colors.darkkblue, emissive: Colors.darkkblue, wireframe:true});
@@ -601,8 +601,9 @@ function createEnemy(position, hp){
 			});
 
 			enemy.mesh.position.copy(spaceship.mesh.getWorldPosition());
-			enemy.mesh.position.z-=300;
-			enemy.mesh.position.y+=Math.random()*Math.PI;
+			enemy.mesh.position.z-=200;
+			enemy.mesh.position.y+=Math.random()*Math.PI+normalize(Math.random(),0,1,-1,1);
+			enemy.mesh.position.x+=normalize(Math.random(),0,1,-120,200);
 			collidableMesh.push(enemy.mesh);
 			enemies.push(enemy);
 			scene.add(gltf2.scene);	
@@ -633,14 +634,14 @@ function updateEnemy(delta){
 		var angleSpeed = 0.22;
 		var radialSpeed = 0.5;
 		
-		e.mesh.position.copy(spaceship.mesh.getWorldPosition());
-		e.mesh.position.z-=100*flyControls.speed;
+		//e.mesh.position.copy(spaceship.mesh.getWorldPosition());
+		e.mesh.position.z-=3.3*flyControls.speed;
 		//e.mesh.lookAt(spaceship.mesh)
 
 		//console.log(e.mesh.position, )
 		//console.log(delta, angleSpeed, radialSpeed,Math.random(normalize(Math.random(),0,1,-1000,1000)))
-		angle += delta * angleSpeed * normalize(Math.random(),0,1,-1000,1000);
-   		radius -= delta * radialSpeed * normalize(Math.random(),0,1,-1000,1000);
+		angle += delta * angleSpeed * normalize(Math.random(),0,1,-10,10);
+   		radius -= delta * radialSpeed * normalize(Math.random(),0,1,-10,10);
 
 		console.log(angle,delta)
 		//var offsety=Math.random()*Math.sin(Math.PI);
@@ -653,9 +654,9 @@ function updateEnemy(delta){
 		// we are simply converting polar coordinates (angle, distance) into Cartesian coordinates (x, y)
 
 		//e.offsety+=Math.pow(2, e.offsetx/2) * delta;w
-		t += 0.02;          
-		e.offsetx =  20*Math.cos(t) + 0;
-		e.offsety = 20*Math.sin(t) + 0;
+		t += 0.01;          
+		e.offsetx = Math.cos(t) + 0;
+		e.offsety = Math.sin(t) + 0;
 
 		console.log(e.offsetx,e.offsety)
     
