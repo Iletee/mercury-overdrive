@@ -13,7 +13,7 @@ var Planet = function(){
 var Cloud = function(){
 	// Create an empty container that will hold the different parts of the cloud
 	this.mesh = new THREE.Object3D();
-	this.hitbox = new THREE.Box3();
+	//this.hitbox = new THREE.Box3();
 	// create a cube geometry;
 	// this shape will be duplicated to create the cloud
 	var geom = new THREE.BoxGeometry(20,20,20);

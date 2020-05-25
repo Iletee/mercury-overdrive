@@ -254,7 +254,8 @@ function createSky(){
 	sky = new Sky();
 	sky.mesh.position.y = -600;
 	sky.mesh.position.z = -6000;
-    sky.mesh.rotateY(1.57)
+	sky.mesh.rotateY(1.57)
+	sky.mesh.name="sky";
 	scene.add(sky.mesh);
 	sky.mesh.userData = {type:"sky"};
 
@@ -309,6 +310,7 @@ function createShip(){
 	spaceship.mesh.userData={
 		type: "hero"
 	}; 
+	spaceship.mesh.name="hero";
 	
 	  //var newMaterial = new THREE.MeshToonMaterial({color: Colors.darkkblue, emissive: Colors.darkkblue, wireframe:true});
 	  spaceship.mesh.traverse((o) => {
@@ -445,6 +447,7 @@ var Bullet = function() {
 	}));
 	//this.hitbox = new THREE.Box3();
 	this.direction = new THREE.Vector3();
+	this.mesh.userData = {type: "bullet"}
 }
 
 //And this is the BULLET FACTORY
@@ -506,7 +509,7 @@ function updateBullets(delta){
 			var collisionResults = ray.intersectObjects( collidableMesh, true );
 
 			if ( collisionResults.length > 0 && collisionResults[0].distance < directionVector.length() ) {
-				console.log(" Hit ",collisionResults[ 0 ].object.userData);
+				console.log(" Hit ",collisionResults[ 0 ].object.userData.type);
 				//audiomanager.sprites.play('drum1');
 				if(collisionResults[ 0 ].object.userData.type=="hero" ){ 
 					spaceship.health -=1;
@@ -603,11 +606,23 @@ function createEnemy(position, hp){
 		console.log("enemy time");
 
 		var loader = new GLTFLoader();
+	
 		loader.load( '../assets/models/nave_inimiga/scene.gltf', function (gltf2){
 			// get the vertices
 			enemy.gltf=gltf2;
+			gltf2.scene.name="enemy_"+enemycount.toString();
 			//console.log(gltf2);
-			enemy.mesh=gltf2.scene.children[0];
+			enemy.mesh =gltf2.scene;
+			enemy.mesh.traverse((o) => {
+				if (o.isMesh) {
+					o.userData ={
+						type: "enemy", 
+						id: enemycount
+					};
+
+			  }});
+
+			console.log(gltf2);
 			//enemy.mesh.rotateY(3);
 			//enemy.mesh.rotateZ(2);
 			//enemy.mesh.userData.id="enemy";
@@ -617,21 +632,18 @@ function createEnemy(position, hp){
 			color: Colors.darkkblue,
 			emissive: Colors.gray,
 			emisiveIntensity: 0.5,
-			transparent:true
-
-		}));
-	
-		//make some markers on the mesh
-		enemy.mesh.userData= {
-			type:"enemy",
-			eid:enemycount
-		}
-
-		enemy.id=enemycount;
-		enemy.exhaust.position.copy(enemy.mesh.getWorldPosition()); // start position - the tip of the weapon
-		enemy.exhaust.position.z+=1.5;
+			transparent:true,
+			name: "ee_"+enemycount.toString()
+			}));
 		
-		enemy.mesh.add(spaceship.exhaust);
+		
+
+			enemy.id=enemycount;
+			enemy.exhaust.position.copy(enemy.mesh.getWorldPosition()); // start position - the tip of the weapon
+			enemy.exhaust.position.z+=1.5;
+			enemy.exhaust.name="e-exhaust_"+enemycount.toString();
+			
+			enemy.mesh.add(enemy.exhaust);
 		
 			//var newMaterial = new THREE.MeshToonMaterial({color: Colors.darkkblue, emissive: Colors.darkkblue, wireframe:true});
 			enemy.mesh.traverse((o) => {
@@ -642,8 +654,17 @@ function createEnemy(position, hp){
 			enemy.mesh.position.z-=200;
 			enemy.mesh.position.y+=Math.random()*Math.PI+normalize(Math.random(),0,1,-1,1);
 			enemy.mesh.position.x+=normalize(Math.random(),0,1,-120,200);
-			collidableMesh.push(enemy.mesh);
-			enemies.push(enemy);
+
+					//make some markers on the mesh
+			enemy.mesh.userData= {
+				type:"enemy",
+				eid:enemycount
+			}
+
+			enemy.mesh.name=enemycount;
+				collidableMesh.push(enemy.mesh);
+				enemies.push(enemy);
+				
 			scene.add(enemy.mesh);	
 			//spaceship.mesh.material.emissive.setHex(Colors.pink);
 		
@@ -695,8 +716,8 @@ function updateEnemy(delta){
 
 		//e.offsety+=Math.pow(2, e.offsetx/2) * delta;w
 		t += 0.004;          
-		e.offsetx = Math.cos(t) + 0;
-		e.offsety = Math.sin(t) + 0;
+		//e.offsetx = Math.cos(t) + 0;
+		//e.offsety = Math.sin(t) + 0;
 
 		//console.log(e.offsetx,e.offsety)
     
