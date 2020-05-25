@@ -256,6 +256,7 @@ function createSky(){
 	sky.mesh.position.z = -6000;
     sky.mesh.rotateY(1.57)
 	scene.add(sky.mesh);
+	sky.mesh.userData = {type:"sky"};
 
 	sky.clouds.forEach(c =>{
 		collidableMesh.push(c.mesh);
@@ -268,11 +269,13 @@ var SpaceShip = function() {
 	this.gltf;
 	this.bullets = [];
 	this.exhaust;
-	this.hitbox = new THREE.Box3();
+	//this.hitbox = new THREE.Box3();
 
-+	this.actiontimestamp;
+	this.actiontimestamp;
 	this.offsetx=0;
 	this.offsety=0;
+	this.hp=5;
+	this.id="nobody";
 
 }
 
@@ -303,6 +306,9 @@ function createShip(){
 	spaceship.exhaust.position.z+=1.5;
 	spaceship.exhaust.position.y+=15;
 	spaceship.mesh.add(spaceship.exhaust);
+	spaceship.mesh.userData={
+		type: "hero"
+	}; 
 	
 	  //var newMaterial = new THREE.MeshToonMaterial({color: Colors.darkkblue, emissive: Colors.darkkblue, wireframe:true});
 	  spaceship.mesh.traverse((o) => {
@@ -310,7 +316,7 @@ function createShip(){
 
 		
 	  });
-	  scene.add(gltf2.scene);	
+	  scene.add(spaceship.mesh);	
 	  //spaceship.mesh.material.emissive.setHex(Colors.pink);
 	 
 	  
@@ -367,15 +373,21 @@ function onDocumentMouseDown( event ) {
 document.addEventListener( 'mousedown', onDocumentMouseDown, false );
 
 var raycaster = new THREE.Raycaster();
+var nextBeat=0;
 function loop(){
+	// Level main loop 
 	// Rotate the propeller, the sea and the sky
 	//sky.mesh.rotation.z += .003;
 	//shootBullets();
 
-    var delta = clock.getDelta();
+	var delta = clock.getDelta();
+	
 
 	flyControls.update(delta);
-   
+	
+	//calculate next beat in timer
+	updateBeat(clock);
+
     // render the scene
 	updateSky(delta);
 	updatePlane();
@@ -402,6 +414,10 @@ function loop(){
 }
 
 var previoustime
+function updateBeat(time){
+
+}
+
 function updateSky(time){
 
    var beats = time*1000;
@@ -427,7 +443,7 @@ var Bullet = function() {
 		opacity:1
 
 	}));
-	this.hitbox = new THREE.Box3();
+	//this.hitbox = new THREE.Box3();
 	this.direction = new THREE.Vector3();
 }
 
@@ -459,7 +475,7 @@ function shootBullets(target, shooter){
 }
 
 function updateBullets(delta){
-	var speed = 50;
+	var speed = 100;
 
 	
 	spaceship.bullets.forEach(b => {
@@ -490,8 +506,20 @@ function updateBullets(delta){
 			var collisionResults = ray.intersectObjects( collidableMesh, true );
 
 			if ( collisionResults.length > 0 && collisionResults[0].distance < directionVector.length() ) {
-				console.log(" Hit ");
-				audiomanager.sprites.play('drum1');
+				console.log(" Hit ",collisionResults[ 0 ].object.userData);
+				//audiomanager.sprites.play('drum1');
+				if(collisionResults[ 0 ].object.userData.type=="hero" ){ 
+					spaceship.health -=1;
+				}
+				if(collisionResults[ 0 ].object.userData.type=="enemy" ){ 
+					enemies.forEach(e =>{
+						if(e.id==collisionResults[ 0 ].object.userData.eid){
+							e.hp-=1;
+							console.log("E HEALTH ",e.hp);
+						}
+					})
+				}
+
 				if(typeof collisionResults[ 0 ].object.material.emissive != "undefined" ){ 
 					collisionResults[ 0 ].object.material.emissive.setHex(Colors.gray);
 					cleanBullet(b);
@@ -500,6 +528,8 @@ function updateBullets(delta){
 					deadObject.mesh=collisionResults[ 0 ].object;
 					cleanBullet(deadObject);
 				}
+				
+
 			}
 				//cleanBullet(b);
 
@@ -580,6 +610,8 @@ function createEnemy(position, hp){
 			enemy.mesh=gltf2.scene.children[0];
 			//enemy.mesh.rotateY(3);
 			//enemy.mesh.rotateZ(2);
+			//enemy.mesh.userData.id="enemy";
+			//enemy.mesh.userData.eid=enemycount;
 	
 			enemy.exhaust = new THREE.Mesh(new THREE.CylinderGeometry(1,1,32,5,null,null,1), new THREE.MeshToonMaterial({
 			color: Colors.darkkblue,
@@ -589,7 +621,13 @@ function createEnemy(position, hp){
 
 		}));
 	
-		
+		//make some markers on the mesh
+		enemy.mesh.userData= {
+			type:"enemy",
+			eid:enemycount
+		}
+
+		enemy.id=enemycount;
 		enemy.exhaust.position.copy(enemy.mesh.getWorldPosition()); // start position - the tip of the weapon
 		enemy.exhaust.position.z+=1.5;
 		
@@ -606,7 +644,7 @@ function createEnemy(position, hp){
 			enemy.mesh.position.x+=normalize(Math.random(),0,1,-120,200);
 			collidableMesh.push(enemy.mesh);
 			enemies.push(enemy);
-			scene.add(gltf2.scene);	
+			scene.add(enemy.mesh);	
 			//spaceship.mesh.material.emissive.setHex(Colors.pink);
 		
 			
@@ -633,6 +671,8 @@ function updateEnemy(delta){
 		var radius =100;
 		var angleSpeed = 0.22;
 		var radialSpeed = 0.5;
+
+		//console.log(e.id, e.hp);
 		
 		//e.mesh.position.copy(spaceship.mesh.getWorldPosition());
 		e.mesh.position.z-=3.3*flyControls.speed;
@@ -643,7 +683,7 @@ function updateEnemy(delta){
 		angle += delta * angleSpeed * normalize(Math.random(),0,1,-10,10);
    		radius -= delta * radialSpeed * normalize(Math.random(),0,1,-10,10);
 
-		console.log(angle,delta)
+		//console.log(angle,delta)
 		//var offsety=Math.random()*Math.sin(Math.PI);
 		//var offsetx=Math.random()*+Math.sin(Math.PI);
 
@@ -658,7 +698,7 @@ function updateEnemy(delta){
 		e.offsetx = Math.cos(t) + 0;
 		e.offsety = Math.sin(t) + 0;
 
-		console.log(e.offsetx,e.offsety)
+		//console.log(e.offsetx,e.offsety)
     
 		e.mesh.position.y += e.offsety;
         e.mesh.position.x += e.offsetx;

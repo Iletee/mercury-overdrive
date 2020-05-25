@@ -69,7 +69,9 @@ var Cloud = function(){
 		
 		// allow each cube to cast and to receive shadows
 		m.castShadow = true;
-		m.receiveShadow = true;
+        m.receiveShadow = true;
+        
+        this.mesh.userData={type:"cloud"};
 		
 		// add the cube to the container we first created
 		this.mesh.add(m);

@@ -26,9 +26,9 @@ export var GameLoopControls = function(h, w){
 
     //Listen to mouse and keyboard
     document.addEventListener('mousemove', this.handleMouseMove, false);
-    document.addEventListener("mousedown", this.handleMouseDown, false);
-    document.addEventListener('keydown', this.handleKeyDown);	
-    document.addEventListener('keyup', this.handleKeyUp);	
+   // document.addEventListener("mousedown", this.handleMouseDown, false);
+    //document.addEventListener('keydown', this.handleKeyDown);	
+    //document.addEventListener('keyup', this.handleKeyUp);	
 }
 GameLoopControls.prototype.getMousePos = function(){
     return this.mousePos;
