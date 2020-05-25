@@ -149,8 +149,12 @@ var Sky = function(){
 		var s = 1+Math.random()*2;
         c.mesh.scale.set(s,s,s);
     
-
+        c.userData ={
+            type: "cloud", 
+            id: this.nClouds
+        };
         this.clouds.push(c)
+        	
 		// do not forget to add the mesh of each cloud in the scene
 		this.mesh.add(c.mesh);  
 	}  

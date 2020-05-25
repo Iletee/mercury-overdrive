@@ -516,7 +516,8 @@ function updateBullets(delta){
 				}
 				if(collisionResults[ 0 ].object.userData.type=="enemy" ){ 
 					enemies.forEach(e =>{
-						if(e.id==collisionResults[ 0 ].object.userData.eid){
+						console.log(e.id,collisionResults[ 0 ].object.userData);
+						if(e.id==collisionResults[ 0 ].object.userData.id){
 							e.hp-=1;
 							console.log("E HEALTH ",e.hp);
 						}
@@ -658,7 +659,7 @@ function createEnemy(position, hp){
 					//make some markers on the mesh
 			enemy.mesh.userData= {
 				type:"enemy",
-				eid:enemycount
+				id:enemycount.valueOf()
 			}
 
 			enemy.mesh.name=enemycount;
@@ -715,7 +716,7 @@ function updateEnemy(delta){
 		// we are simply converting polar coordinates (angle, distance) into Cartesian coordinates (x, y)
 
 		//e.offsety+=Math.pow(2, e.offsetx/2) * delta;w
-		t += 0.004;          
+		t += 0.002;          
 		//e.offsetx = Math.cos(t) + 0;
 		//e.offsety = Math.sin(t) + 0;
 
