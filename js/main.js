@@ -55,6 +55,7 @@ function init() {
     // Play music
     audiomanager.bmg.once('load', function(){
 				audiomanager.bmg.play();
+				beatTimer();
 				document.getElementById("loading").classList.add('hidden');
 
 				//document.getElementById("starter").classList.add('hidden');
@@ -375,7 +376,7 @@ function onDocumentMouseDown( event ) {
 document.addEventListener( 'mousedown', onDocumentMouseDown, false );
 
 var raycaster = new THREE.Raycaster();
-var nextBeat=0;
+var isbeat=true;
 function loop(){
 	// Level main loop 
 	// Rotate the propeller, the sea and the sky
@@ -417,17 +418,23 @@ function loop(){
 
 var previoustime
 function updateBeat(time){
-
+	isbeat=false;
 }
 
-function updateSky(time){
+function beatTimer(){
+	var timeout = 60000/audiomanager.bpm;
+	console.log(timeout,audiomanager.bpm)
 
-   var beats = time*1000;
-   var divisor=60/bpm*10;
-   //console.log(beats,divisor);
-  // console.log(beats%46)
-   //todo bpm manager
-   if (beats%divisor==0) sky.moveWaves();
+	setInterval(function(){ 
+		console.log("BEAT");
+		isbeat=true;
+		updateSky();
+	}, timeout);
+}
+
+function updateSky(){
+
+   sky.moveWaves();
 }
 
 // HUD Updater for many happy times
@@ -509,28 +516,27 @@ function updateBullets(delta){
 			var collisionResults = ray.intersectObjects( collidableMesh, true );
 
 			if ( collisionResults.length > 0 && collisionResults[0].distance < directionVector.length() ) {
-				console.log(" Hit ",collisionResults[ 0 ].object.userData.type);
+				var collidedObject = collisionResults[ 0 ].object;
+				console.log(" Hit ",collidedObject.userData.type);
 				//audiomanager.sprites.play('drum1');
-				if(collisionResults[ 0 ].object.userData.type=="hero" ){ 
+				if(collidedObject.userData.type=="hero" ){ 
 					spaceship.health -=1;
+					cleanBullet(b);
 				}
-				if(collisionResults[ 0 ].object.userData.type=="enemy" ){ 
+				if(collidedObject.userData.type=="enemy" ){ 
 					enemies.forEach(e =>{
-						console.log(e.id,collisionResults[ 0 ].object.userData);
-						if(e.id==collisionResults[ 0 ].object.userData.id){
+						console.log(e.id,collidedObject.userData);
+						if(e.id==collidedObject.userData.id){
 							e.hp-=1;
 							console.log("E HEALTH ",e.hp);
+							cleanBullet(b);
 						}
 					})
 				}
 
-				if(typeof collisionResults[ 0 ].object.material.emissive != "undefined" ){ 
-					collisionResults[ 0 ].object.material.emissive.setHex(Colors.gray);
+				if(typeof collidedObject.material.emissive != "undefined" ){ 
+					collidedObject.material.emissive.setHex(Colors.gray);
 					cleanBullet(b);
-
-					var deadObject = function(){this.mesh;};
-					deadObject.mesh=collisionResults[ 0 ].object;
-					cleanBullet(deadObject);
 				}
 				
 
@@ -607,9 +613,10 @@ function createEnemy(position, hp){
 		console.log("enemy time");
 
 		var loader = new GLTFLoader();
-	
 		loader.load( '../assets/models/nave_inimiga/scene.gltf', function (gltf2){
 			// get the vertices
+			var objectId = Math.random().toString(36).substr(2, 9);	
+			
 			enemy.gltf=gltf2;
 			gltf2.scene.name="enemy_"+enemycount.toString();
 			//console.log(gltf2);
@@ -618,7 +625,7 @@ function createEnemy(position, hp){
 				if (o.isMesh) {
 					o.userData ={
 						type: "enemy", 
-						id: enemycount
+						id: objectId.valueOf()
 					};
 
 			  }});
@@ -639,9 +646,10 @@ function createEnemy(position, hp){
 		
 		
 
-			enemy.id=enemycount;
+			enemy.id=objectId.valueOf();
 			enemy.exhaust.position.copy(enemy.mesh.getWorldPosition()); // start position - the tip of the weapon
 			enemy.exhaust.position.z+=1.5;
+			spaceship.exhaust.position.y+=15;
 			enemy.exhaust.name="e-exhaust_"+enemycount.toString();
 			
 			enemy.mesh.add(enemy.exhaust);
@@ -655,12 +663,6 @@ function createEnemy(position, hp){
 			enemy.mesh.position.z-=200;
 			enemy.mesh.position.y+=Math.random()*Math.PI+normalize(Math.random(),0,1,-1,1);
 			enemy.mesh.position.x+=normalize(Math.random(),0,1,-120,200);
-
-					//make some markers on the mesh
-			enemy.mesh.userData= {
-				type:"enemy",
-				id:enemycount.valueOf()
-			}
 
 			enemy.mesh.name=enemycount;
 				collidableMesh.push(enemy.mesh);
