@@ -17,6 +17,8 @@ LevelAudioManager.prototype.loadLevelAudio = function (){
         loop:true
       });
     
+    this.bmp=100;
+    
       this.laser = new Howl({
         src: ['../assets/audio/effects/laser6a.ogg']
       });

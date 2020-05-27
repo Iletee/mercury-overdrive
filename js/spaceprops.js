@@ -35,7 +35,7 @@ var Cloud = function(){
 										 // a random angle
 										 ang:Math.random()*Math.PI*2,
 										 // a random distance
-										 amp:5 + Math.random()*15,
+										 amp:5 + Math.random()*5,
 										 // a random speed between 0.016 and 0.048 radians / frame
 										 speed:0.016 + Math.random()*0.032
 										});
@@ -44,6 +44,7 @@ var Cloud = function(){
 	var mat = new THREE.MeshToonMaterial({
         color:Colors.orange,
         emissive: Colors.orange,
+        emissiveIntensity:0.5,
         wireframe:false
     });
    
@@ -91,8 +92,8 @@ var Cloud = function(){
                 var vprops = this.waves[i];
                 
                 // update the position of the vertex
-                v.x = vprops.x + Math.sin(vprops.ang)*20;
-                v.y = vprops.y + Math.sin(vprops.ang/2)*10;
+                v.x = vprops.x + Math.sin(vprops.ang)*10;
+                v.y = vprops.y + Math.sin(vprops.ang/2)*5;
         
                 // increment the angle for the next frame
                 vprops.ang += vprops.speed;
@@ -158,9 +159,7 @@ var Sky = function(){
 		// do not forget to add the mesh of each cloud in the scene
 		this.mesh.add(c.mesh);  
 	}  
-    var planet = new Planet();
-    planet.mesh.position.set(1550, 2550, 3250);
-	this.mesh.add(planet.mesh)
+
 }
 
 Sky.prototype.moveWaves = function (){

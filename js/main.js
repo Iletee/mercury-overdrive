@@ -249,16 +249,20 @@ function createLights() {
 // Now we instantiate the sky and push its center a bit
 // towards the bottom of the screen
 
-var sky;
+var sky,planet;
 
 function createSky(){
 	sky = new Sky();
 	sky.mesh.position.y = -600;
 	sky.mesh.position.z = -6000;
-	sky.mesh.rotateY(1.57)
+    sky.mesh.rotateY(1.57)
 	sky.mesh.name="sky";
 	scene.add(sky.mesh);
 	sky.mesh.userData = {type:"sky"};
+
+	planet = new Planet();
+    planet.mesh.position.set(1550, 2500, -6000); //1550,2550,3250
+	scene.add(planet.mesh)
 
 	sky.clouds.forEach(c =>{
 		collidableMesh.push(c.mesh);
@@ -389,10 +393,10 @@ function loop(){
 	flyControls.update(delta);
 	
 	//calculate next beat in timer
-	updateBeat(clock);
+
 
     // render the scene
-	updateSky(delta);
+	//updateSky(delta);
 	updatePlane();
 	
 	updateBullets(delta);
@@ -406,6 +410,8 @@ function loop(){
 		createEnemy();
 		updateEnemy(delta);
 	}
+
+	updateBeat(clock);
 	
 /* This is where the level logic needs to go 
 */
