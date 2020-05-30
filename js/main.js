@@ -281,6 +281,7 @@ var SpaceShip = function() {
 	this.offsetx=0;
 	this.offsety=0;
 	this.hp=5;
+	this.type;
 	this.id="nobody";
 
 }
@@ -289,6 +290,7 @@ var spaceship;
 
 function createShip(){
   spaceship = new SpaceShip(); 
+  spaceship.type="hero";
   
   var loader = new GLTFLoader();
   loader.load( '../assets/models/nave_inimiga/scene.gltf', function (gltf2){
@@ -465,6 +467,7 @@ var Bullet = function() {
 	this.mesh.userData = {type: "bullet"}
 }
 
+var bulletpitch=0;
 //And this is the BULLET FACTORY
 function shootBullets(target, shooter){
 	//console.log(flyControls.bullets, flyControls.movementSpeed);
@@ -488,7 +491,18 @@ function shootBullets(target, shooter){
 		//console.log("shooting ",shooter.bullets.length)
 
 		//Play PEW
-		audiomanager.laser.play();
+		if(shooter.type=="hero"){
+			console.log(bulletpitch)
+			audiomanager.shoot[bulletpitch].play();
+			bulletpitch=Math.floor(Math.random()*audiomanager.shoot.length);
+			
+			//if(bulletpitch >= audiomanager.shoot.length) bulletpitch=0;
+
+		}
+
+		if(shooter.type=="enemy"){
+			audiomanager.eshoot.play();
+		}
 	
 }
 
@@ -651,6 +665,8 @@ var enemycount=0;
 function createEnemy(position, hp){
 		if(enemycount < 3 ){
 		var enemy = new SpaceShip(); 
+		enemy.type="enemy";
+
 		console.log("enemy time");
 
 		var loader = new GLTFLoader();
@@ -785,6 +801,7 @@ function updateEnemy(delta){
 
 			//clean from scene
 			cleanByUserDataID(e.id);
+			audiomanager.crash.play();
 		});
 	}
 

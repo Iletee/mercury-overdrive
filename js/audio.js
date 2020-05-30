@@ -7,6 +7,9 @@ var LevelAudioManager = function(){
     this.bmg;
     this.laser;
     this.sprites;
+    this.crash;
+    this.shoot=[];
+    this.eshoot;
     this.analyser;
     this.bpm=100;
 }
@@ -18,10 +21,47 @@ LevelAudioManager.prototype.loadLevelAudio = function (){
       });
     
     this.bmp=100;
-    
+
       this.laser = new Howl({
         src: ['../assets/audio/effects/laser6a.ogg']
       });
+
+      
+      this.eshoot = new Howl({
+        src: ['../assets/audio/effects/shoot.wav']
+      });
+
+
+      //from drumbitr tempo 100 kit2 muffler compressor
+      this.crash = new Howl({
+        src: ['../assets/audio/effects/crash.wav']
+      });
+
+      //load hero audio
+      this.shoot.push(new Howl({
+        src: ['../assets/audio/effects/heroshoot1a.wav']
+      }));
+
+      this.shoot.push(new Howl({
+        src: ['../assets/audio/effects/heroshoot1b.wav']
+      }));
+
+      this.shoot.push(new Howl({
+        src: ['../assets/audio/effects/heroshoot1c.wav']
+      }));
+
+      this.shoot.push(new Howl({
+        src: ['../assets/audio/effects/heroshoot1d.wav']
+      }));
+
+      this.shoot.push(new Howl({
+        src: ['../assets/audio/effects/heroshoot1e.wav']
+      }));
+
+
+
+
+
 
       this.sprites  = new Howl({
         src: ['../assets/audio/263_full_night-drive-synthwave_0168_preview.mp3'],
