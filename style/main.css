@@ -168,6 +168,36 @@
 	animation: neon .15s ease-in-out infinite alternate;
 }
 
+#healthmeter {
+	top: 200px;
+	left: 300px;
+	transform: skew(-5deg, 10deg);
+	width: 400px;
+	z-index:20;
+	font-weight: 1800;
+	font-size: 100%;
+	position: fixed;
+	font-family: 'Disco';
+	color: white;
+	animation: neon .15s ease-in-out infinite alternate;
+}
+
+#scoremeter{
+	margin-left:10px;
+	margin-bottom:5px;
+}
+
+.hpc {
+	min-width: 40px;
+	min-height: 30px;
+	border-color: white;
+	background-color: white;
+	display:inline-block;
+	margin-left: 10px;
+	z-index:22;
+
+}
+
 #music {
 	bottom: 200px;
 	right: 300px;

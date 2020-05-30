@@ -30,6 +30,7 @@ var bpm=100;
 var state=1;
 var spacepressed=false;
 var controls;
+var beatCount=0;
 
 function init() {
     // set up the scene, the camera and the renderer
@@ -93,6 +94,7 @@ var hud;
 
 function createHud(){
 	hud = new HeadsUpDisplay();
+	hud.createHud(spaceship.hp);
 	
 }
 
@@ -283,7 +285,7 @@ var SpaceShip = function() {
 	this.hp=5;
 	this.type;
 	this.id="nobody";
-
+	this.score=0;
 }
 
 var spaceship;
@@ -438,6 +440,7 @@ function beatTimer(){
 	setInterval(function(){ 
 		console.log("BEAT");
 		isbeat=true;
+		beatCount+=1;
 		updateSky();
 	}, timeout);
 }
@@ -450,6 +453,9 @@ function updateSky(){
 // HUD Updater for many happy times
 function updateHud(){
 	hud.updateSpeed(flyControls.speed);
+	hud.updateHealth(spaceship.hp);
+	hud.updateScore(spaceship.score);
+
 }
 
 
@@ -666,6 +672,7 @@ function createEnemy(position, hp){
 		if(enemycount < 3 ){
 		var enemy = new SpaceShip(); 
 		enemy.type="enemy";
+		enemy.score=1000;
 
 		console.log("enemy time");
 
@@ -794,6 +801,8 @@ function updateEnemy(delta){
 	if(enemytobeRemoved.length>=1){
 		enemytobeRemoved.forEach(e => {
 			const index = enemies.indexOf(e);
+			//give player score
+			spaceship.score+=e.score;
 			//console.log("le place in le ",index);
 			if (index > -1) {
 				enemies.splice(index, 1);
