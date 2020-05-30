@@ -14,13 +14,19 @@ HeadsUpDisplay.prototype.createHud = function(health){
 	this.healthMeter = document.createElement("div");
 	this.scoreMeter = document.createElement("div");
 	this.speedo = document.createElement("div");
+	this.gunShow = document.createElement("div");
+
 
 	this.healthMeter.id = "healthmeter";
 	this.scoreMeter.id = "scoremeter";
 	this.speedo.id ="speedo";
 
+	this.gunShow.id ="gunshow";
+
+
 	document.body.appendChild(this.healthMeter);
 	document.body.appendChild(this.speedo);
+	document.body.appendChild(this.gunShow);
 
 	console.log("creathuD",health);
 
@@ -53,7 +59,10 @@ HeadsUpDisplay.prototype.updateScore = function (score){
 HeadsUpDisplay.prototype.updateHealth = function (health){
 	//this.healthMeter.textContent = health;
 
+}
 
+HeadsUpDisplay.prototype.updateGunAmmo = function (){
+	this.gunShow.textContent = "MAIN LASER ∞";
 }
 
 

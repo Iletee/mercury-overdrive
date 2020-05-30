@@ -456,6 +456,7 @@ function updateHud(){
 	hud.updateSpeed(flyControls.speed);
 	hud.updateHealth(spaceship.hp);
 	hud.updateScore(spaceship.score);
+	hud.updateGunAmmo();
 
 }
 
@@ -723,6 +724,7 @@ function createEnemy(position, hp){
 		var enemy = new SpaceShip(); 
 		enemy.type="enemy";
 		enemy.score=1000;
+		enemy.hp = 15;
 
 		console.log("enemy time");
 
@@ -811,8 +813,8 @@ function updateEnemy(delta){
 		e.mesh.position.x += e.offsetx;
 		e.mesh.rotation.x += Math.floor(Math.random()*3)*0.01;
 		if(isbeat == true){
-			e.mesh.rotation.x += Math.floor(Math.random()*5)*0.01;
-			e.mesh.rotation.y += Math.floor(Math.random()*10)*0.01;
+			e.mesh.rotation.x += Math.floor(Math.random()*2)*0.01;
+			e.mesh.rotation.z += Math.floor(Math.random()*2)*0.01;
 	
 		}
 		var bPos = new THREE.Vector3(e.mesh.position.x,e.mesh.position.y,e.mesh.position.z);

@@ -182,6 +182,20 @@
 	animation: neon .15s ease-in-out infinite alternate;
 }
 
+
+#gunshow {
+	top: 200px;
+	right: 300px;
+	transform: skew(5deg, -10deg);
+	width: 120px;
+	z-index:20;
+	font-weight: 1800;
+	font-size: 100%;
+	position: fixed;
+	font-family: 'Disco';
+	color: white;
+}
+
 #scoremeter{
 	margin-left:10px;
 	margin-bottom:5px;
