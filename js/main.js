@@ -403,6 +403,8 @@ function loop(){
 	updatePlane();
 	updateHud();
 
+
+
 	checkProgression();
 
 	if(state==2){
@@ -554,13 +556,46 @@ function updateBullets(delta){
 
 }
 
+function cleanByUserDataID(id){
+
+	scene.children.forEach(object =>{
+		//console.log("new child ", id, object.userData.id)
+		if (object.name == id){
+
+			console.log("found the bASTARD ",object);
+			scene.remove(object);
+			object.traverse( function ( child ) {
+
+				if ( child.geometry !== undefined ) {
+			
+					child.geometry.dispose();
+					child.material.dispose();
+			
+				}
+			
+			} );
+			}
+
+			//TODO: if enemy remove from enemylist
+			//TODO if collidable remove from collidableList
+			//console.log("cleanup complete ",scene);
+		}
+	)
+}
+
 function cleanBullet(b){
 	//console.log("cleaning");
+	b.mesh.traverse((o) => {
+		if (o.isMesh){
+			//console.log("found mesh - cleaning", o.userData.type)
+			if(o.userData.type=="enemy") if(typeof o.gltf !== "undefined") cleanBullet(o.gltf.scene); //console.log(scene);
+			o.geometry.dispose();
+			o.material.dispose();
+			scene.remove(o);
+		}
+		
+	  });
 	
-	b.mesh.geometry.dispose();
-	b.mesh.material.dispose();
-	scene.remove(b.mesh);
-
 	const index = spaceship.bullets.indexOf(b);
 	if (index > -1) {
 		spaceship.bullets.splice(index, 1);
@@ -670,7 +705,7 @@ function createEnemy(position, hp){
 			enemy.mesh.position.y+=Math.random()*Math.PI+normalize(Math.random(),0,1,-1,1);
 			enemy.mesh.position.x+=normalize(Math.random(),0,1,-120,200);
 
-			enemy.mesh.name=enemycount;
+			enemy.mesh.name= objectId.valueOf();
 				collidableMesh.push(enemy.mesh);
 				enemies.push(enemy);
 				
@@ -696,53 +731,38 @@ function degrees_to_radians(degrees)
 
 var t = 0;
 function updateEnemy(delta){
+	var enemytobeRemoved = [];
+
+	//lets check each enemy
 	enemies.forEach(e => {
 		var angle = 100;
 		var radius =100;
 		var angleSpeed = 0.22;
 		var radialSpeed = 0.5;
 
-		//console.log(e.id, e.hp);
-		
-		//e.mesh.position.copy(spaceship.mesh.getWorldPosition());
-		e.mesh.position.z-=3.3*flyControls.speed;
-		//e.mesh.lookAt(spaceship.mesh)
+		//if this one is dead we remove it from the scene and stop updating it
+		if (e.hp<0){
+			//remove from enemies list
+			enemytobeRemoved.push(e);
+			return;
+		}
 
-		//console.log(e.mesh.position, )
-		//console.log(delta, angleSpeed, radialSpeed,Math.random(normalize(Math.random(),0,1,-1000,1000)))
+		e.mesh.position.z-=3.3*flyControls.speed;
+
 		angle += delta * angleSpeed * normalize(Math.random(),0,1,-10,10);
    		radius -= delta * radialSpeed * normalize(Math.random(),0,1,-10,10);
 
-		//console.log(angle,delta)
-		//var offsety=Math.random()*Math.sin(Math.PI);
-		//var offsetx=Math.random()*+Math.sin(Math.PI);
-
-		//var h = 750 + Math.random()*200; // this is the distance between the center of the axis and the cloud itself
-
-		// Trigonometry!!! I hope you remember what you've learned in Math :)
-		// in case you don't: 
-		// we are simply converting polar coordinates (angle, distance) into Cartesian coordinates (x, y)
-
-		//e.offsety+=Math.pow(2, e.offsetx/2) * delta;w
 		t += 0.002;          
-		//e.offsetx = Math.cos(t) + 0;
-		//e.offsety = Math.sin(t) + 0;
-
-		//console.log(e.offsetx,e.offsety)
-    
+	
 		e.mesh.position.y += e.offsety;
         e.mesh.position.x += e.offsetx;
-		
-		
-    
-
 	
 		var bPos = new THREE.Vector3(e.mesh.position.x,e.mesh.position.y,e.mesh.position.z);
 		var sPos = new THREE.Vector3(spaceship.mesh.position.x,spaceship.mesh.position.y,spaceship.mesh.position.z);
 
 		if (bPos.distanceTo(sPos) < 500){
 			//TODO> Something
-			if(e.bullets.length<3){
+			if(e.bullets.length<3 && isbeat){
 				shootBullets(spaceship,e);
 			}
 		if (bPos.distanceTo(sPos) < 3000){
@@ -752,5 +772,20 @@ function updateEnemy(delta){
 		}
 
 	})
+
+	//console.log(enemytobeRemoved.length);
+	//FINALLY CLEAN UP DEAD ENEMIES
+	if(enemytobeRemoved.length>=1){
+		enemytobeRemoved.forEach(e => {
+			const index = enemies.indexOf(e);
+			//console.log("le place in le ",index);
+			if (index > -1) {
+				enemies.splice(index, 1);
+			}
+
+			//clean from scene
+			cleanByUserDataID(e.id);
+		});
+	}
 
 }

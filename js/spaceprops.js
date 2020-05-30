@@ -13,7 +13,7 @@ var Planet = function(){
 var Cloud = function(){
 	// Create an empty container that will hold the different parts of the cloud
 	this.mesh = new THREE.Object3D();
-	//this.hitbox = new THREE.Box3();
+	this.hitbox = new THREE.Box3();
 	// create a cube geometry;
 	// this shape will be duplicated to create the cloud
 	var geom = new THREE.BoxGeometry(20,20,20);
@@ -35,7 +35,7 @@ var Cloud = function(){
 										 // a random angle
 										 ang:Math.random()*Math.PI*2,
 										 // a random distance
-										 amp:5 + Math.random()*5,
+										 amp:5 + Math.random()*15,
 										 // a random speed between 0.016 and 0.048 radians / frame
 										 speed:0.016 + Math.random()*0.032
 										});
@@ -44,7 +44,6 @@ var Cloud = function(){
 	var mat = new THREE.MeshToonMaterial({
         color:Colors.orange,
         emissive: Colors.orange,
-        emissiveIntensity:0.5,
         wireframe:false
     });
    
@@ -70,9 +69,7 @@ var Cloud = function(){
 		
 		// allow each cube to cast and to receive shadows
 		m.castShadow = true;
-        m.receiveShadow = true;
-        
-        this.mesh.userData={type:"cloud"};
+		m.receiveShadow = true;
 		
 		// add the cube to the container we first created
 		this.mesh.add(m);
@@ -92,8 +89,8 @@ var Cloud = function(){
                 var vprops = this.waves[i];
                 
                 // update the position of the vertex
-                v.x = vprops.x + Math.sin(vprops.ang)*10;
-                v.y = vprops.y + Math.sin(vprops.ang/2)*5;
+                v.x = vprops.x + Math.sin(vprops.ang)*20;
+                v.y = vprops.y + Math.sin(vprops.ang/2)*10;
         
                 // increment the angle for the next frame
                 vprops.ang += vprops.speed;
@@ -150,16 +147,12 @@ var Sky = function(){
 		var s = 1+Math.random()*2;
         c.mesh.scale.set(s,s,s);
     
-        c.userData ={
-            type: "cloud", 
-            id: this.nClouds
-        };
+
         this.clouds.push(c)
-        	
 		// do not forget to add the mesh of each cloud in the scene
 		this.mesh.add(c.mesh);  
 	}  
-
+ 
 }
 
 Sky.prototype.moveWaves = function (){
