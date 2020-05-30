@@ -47,7 +47,7 @@ HeadsUpDisplay.prototype.updateSpeed = function (speed){
 HeadsUpDisplay.prototype.updateScore = function (score){
 	//console.log("SPEEED ",speed);
 	//var speedo = document.getElementById("speedo");
-	this.scoreMeter.textContent = score;
+	this.scoreMeter.textContent = "SCORE "+score;
 }
 
 HeadsUpDisplay.prototype.updateHealth = function (health){

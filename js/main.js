@@ -517,7 +517,6 @@ function shootBullets(target, shooter){
 
 function updateBullets(delta){
 	var speed = 100;
-
 	
 	spaceship.bullets.forEach(b => {
 		var group = new THREE.Group();
@@ -548,6 +547,8 @@ function updateBullets(delta){
 
 			if ( collisionResults.length > 0 && collisionResults[0].distance < directionVector.length() ) {
 				var collidedObject = collisionResults[ 0 ].object;
+				spaceship.score+=10;
+
 				console.log(" Hit ",collidedObject.userData.type);
 				//audiomanager.sprites.play('drum1');
 				if(collidedObject.userData.type=="hero" ){ 
@@ -576,6 +577,52 @@ function updateBullets(delta){
 
 		}	
 		});
+
+	
+	speed = 1;
+		
+	enemies.forEach(e=>{
+		e.bullets.forEach(b=>{
+			var group = new THREE.Group();
+			//group.add(b.mesh);
+			//console.log(b.mesh.position);
+			var targetNormalizedVector = new THREE.Vector3(0,0,0);
+			targetNormalizedVector.x = b.direction.x - b.mesh.position.x;
+			targetNormalizedVector.y = b.direction.y - b.mesh.position.y;
+			targetNormalizedVector.z = b.direction.z - b.mesh.position.z;
+			targetNormalizedVector.normalize();
+			b.mesh.translateOnAxis(targetNormalizedVector,speed);
+
+			var bPos = new THREE.Vector3(b.mesh.position.x,b.mesh.position.y,b.mesh.position.z);
+			var sPos = new THREE.Vector3(spaceship.mesh.position.x,spaceship.mesh.position.y,spaceship.mesh.position.z);
+			if (bPos.distanceTo(sPos) >2000) cleanBullet(b);
+
+			//finally lets check if it hit anything
+			var originPoint = b.mesh.position.clone();
+		
+			for (var vertexIndex = 0; vertexIndex < b.mesh.geometry.vertices.length; vertexIndex++)
+			{		
+				var localVertex = b.mesh.geometry.vertices[vertexIndex].clone();
+				var globalVertex = localVertex.applyMatrix4( b.mesh.matrix );
+				var directionVector = globalVertex.sub( b.mesh.position );
+				
+				var ray = new THREE.Raycaster( originPoint, directionVector.clone().normalize() );
+				var collisionResults = ray.intersectObjects( spaceship.mesh, true );
+
+				if ( collisionResults.length > 0 && collisionResults[0].distance < directionVector.length() ) {
+					var collidedObject = collisionResults[ 0 ].object;
+
+					console.log(" Hit player",collidedObject.userData.type);
+					//audiomanager.sprites.play('drum1');
+					if(collidedObject.userData.type=="hero" ){ 
+						spaceship.hp -=1;
+						cleanBullet(b);
+					}
+				}
+
+			}	
+		}) 
+	}) //end of enemy bullets
 
 }
 
