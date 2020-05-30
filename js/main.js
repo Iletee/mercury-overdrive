@@ -401,7 +401,7 @@ function loop(){
 
     // render the scene
 	//updateSky(delta);
-	updatePlane();
+	updatePlanet();
 	
 	updateBullets(delta);
 	updatePlane();
@@ -458,6 +458,9 @@ function updateHud(){
 
 }
 
+function updatePlanet(){
+	planet.mesh.position.z-=3.3*flyControls.speed;
+}
 
 var Bullet = function() {
 	this.mesh =new THREE.Mesh(new THREE.CylinderGeometry(1,1,5,3,null,null,1), new THREE.MeshToonMaterial({
