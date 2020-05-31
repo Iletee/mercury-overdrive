@@ -9,4 +9,12 @@ var Colors = {
 	gray:0x241734,
 };
 
-export {Colors};
+// How many enemies in each phase and of each type
+//Bad struct but ey
+var Enemy1 = []
+    Enemy1[2]= 3;
+    Enemy1[3]= 6;
+    Enemy1[4]= 11;
+
+
+export {Colors, Enemy1};

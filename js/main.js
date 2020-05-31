@@ -3,7 +3,7 @@ import { FlyControls } from './FlyControls.js';
 import { HeadsUpDisplay } from './HeadsUpDisplay.js';
 import { LevelAudioManager } from './audio.js';
 import { Sky, Cloud, Planet } from './spaceprops.js';
-import { Colors } from './store.js';
+import { Colors, Enemy1 } from './store.js';
 
 import  * as Howler from '../node_modules/howler/dist/howler.js';
 import { GLTFLoader } from '../node_modules/three/examples/jsm/loaders/GLTFLoader.js';
@@ -412,10 +412,12 @@ function loop(){
 
 	checkProgression();
 
-	if(state==2){
+	if(state>=2){
 		//console.log("PHASE 1");
 		createEnemy();
 		updateEnemy(delta);
+
+		if(enemies.length==0) state+=1;
 	}
 
 	updateBeat(clock);
@@ -718,9 +720,10 @@ function normalize(v,vmin,vmax,tmin, tmax){
 
 var enemies=[];
 var enemycount=0;
+var enemyUpperlimit=3;
 
 function createEnemy(position, hp){
-		if(enemycount < 3 ){
+		if(enemycount < Enemy1[state] ){
 		var enemy = new SpaceShip(); 
 		enemy.type="enemy";
 		enemy.score=1000;
