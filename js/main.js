@@ -394,6 +394,12 @@ function loop(){
 	// Rotate the propeller, the sea and the sky
 	//sky.mesh.rotation.z += .003;
 	//shootBullets();
+	if(state==-1){
+		//END PHASE
+		
+		return;
+	}
+
 
 	var delta = clock.getDelta();
 	
@@ -415,6 +421,7 @@ function loop(){
 
 	checkProgression();
 
+	
 	if(state>=2){
 		//console.log("PHASE 1");
 		createEnemy();
@@ -720,10 +727,12 @@ function checkProgression(){
 	var sPos = new THREE.Vector3(spaceship.mesh.position.x,spaceship.mesh.position.y,spaceship.mesh.position.z);
 		
 	//console.log(bPos.distanceTo(sPos));
+		if(spaceship.hp < 0) state = -1;
 
-		if(state==1){ 
-			if (bPos.distanceTo(sPos) >8000){ state+=1; }
-		}
+		if(state==1) if (bPos.distanceTo(sPos) >8000){ state+=1; }
+		
+
+
 }
 
 function normalize(v,vmin,vmax,tmin, tmax){

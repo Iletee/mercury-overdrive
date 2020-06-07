@@ -167,18 +167,22 @@
 	color: white;
 	animation: neon .15s ease-in-out infinite alternate;
 }
+#tlc{
+	
+		top: 200px;
+		left: 300px;
+		transform: skew(-5deg, 10deg);
+		width: 400px;
+		z-index:20;
+		font-weight: 1800;
+		font-size: 100%;
+		position: relative;
+		font-family: 'Disco';
+		color: white;
+}
 
 #healthmeter {
-	top: 200px;
-	left: 300px;
-	transform: skew(-5deg, 10deg);
-	width: 400px;
-	z-index:20;
-	font-weight: 1800;
-	font-size: 100%;
-	position: fixed;
-	font-family: 'Disco';
-	color: white;
+	
 	animation: neon .15s ease-in-out infinite alternate;
 }
 
@@ -191,14 +195,19 @@
 	z-index:20;
 	font-weight: 1800;
 	font-size: 100%;
-	position: fixed;
+	position: absolute;
 	font-family: 'Disco';
 	color: white;
 }
 
 #scoremeter{
+	position: relative;
+	font-size: 100%;
+	position: relative;
+	font-family: 'Disco';
 	margin-left:10px;
 	margin-bottom:5px;
+	color: white;
 }
 
 .hpc {
