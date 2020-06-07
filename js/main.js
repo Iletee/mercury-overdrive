@@ -14,8 +14,11 @@ import { RenderPass } from '../node_modules/three/examples/jsm/postprocessing/Re
 import { GameLoopControls } from './controls.js';
 //import { BloomPass } from './node_modules/three/examples/jsm/postprocessing/BloomPass.js';
 
+//these are used for collision detection
 var collidableMesh=[];
+var heroMesh=[];
 
+//post processing params... need a better system
 var params = {
 	exposure: 0.8,
 	bloomStrength: 1.0,
@@ -26,10 +29,7 @@ var params = {
 window.addEventListener('load', init, false);
 
 var clock;
-var bpm=100;
 var state=1;
-var spacepressed=false;
-var controls;
 var beatCount=0;
 
 function init() {
@@ -287,6 +287,7 @@ var SpaceShip = function() {
 	this.id="nobody";
 	this.score=0;
 	this.bulletMax=3;
+	this.lines;
 }
 
 var spaceship;
@@ -307,7 +308,7 @@ function createShip(){
 	  spaceship.exhaust = new THREE.Mesh(new THREE.CylinderGeometry(1,1,32,5,null,null,1), new THREE.MeshToonMaterial({
 		color: Colors.pink,
 		emissive: Colors.darkorange,
-		emisiveIntensity: 0.5,
+		emissiveIntensity: 0.5,
 		transparent:true
 
 	}));
@@ -328,6 +329,8 @@ function createShip(){
 
 		
 	  });
+
+	  heroMesh.push(spaceship.mesh);
 	  scene.add(spaceship.mesh);	
 	  //spaceship.mesh.material.emissive.setHex(Colors.pink);
 	 
@@ -556,6 +559,7 @@ function updateBullets(delta){
 				console.log(" Hit ",collidedObject.userData.type);
 				//audiomanager.sprites.play('drum1');
 				if(collidedObject.userData.type=="hero" ){ 
+
 					spaceship.health -=1;
 					cleanBullet(b);
 				}
@@ -582,11 +586,11 @@ function updateBullets(delta){
 		});
 
 	
-	speed = 0.001;
-		
+	speed = 0.000;
+	
 	enemies.forEach(e=>{
 		e.bullets.forEach(b=>{
-			var group = new THREE.Group();
+	/* 		var group = new THREE.Group();
 			//group.add(b.mesh);
 			//console.log(b.mesh.position);
 			var targetNormalizedVector = new THREE.Vector3(0,0,0);
@@ -595,10 +599,10 @@ function updateBullets(delta){
 			targetNormalizedVector.z = b.direction.z - b.mesh.position.z;
 			targetNormalizedVector.normalize();
 			b.mesh.translateOnAxis(targetNormalizedVector,speed);
-
+*/
 			var bPos = new THREE.Vector3(b.mesh.position.x,b.mesh.position.y,b.mesh.position.z);
-			var sPos = new THREE.Vector3(spaceship.mesh.position.x,spaceship.mesh.position.y,spaceship.mesh.position.z);
-			if (bPos.distanceTo(sPos) >2000) cleanBullet(b);
+			var sPos = new THREE.Vector3(spaceship.mesh.position.x,spaceship.mesh.position.y,spaceship.mesh.position.z); 
+			if (bPos.distanceTo(sPos) >1000) cleanBullet(b);
 
 			//finally lets check if it hit anything
 			var originPoint = b.mesh.position.clone();
@@ -610,22 +614,27 @@ function updateBullets(delta){
 				var directionVector = globalVertex.sub( b.mesh.position );
 				
 				var ray = new THREE.Raycaster( originPoint, directionVector.clone().normalize() );
-				var collisionResults = ray.intersectObjects( spaceship.mesh, true );
+				var collisionResults = ray.intersectObjects( heroMesh, true );
 
 				if ( collisionResults.length > 0 && collisionResults[0].distance < directionVector.length() ) {
 					var collidedObject = collisionResults[ 0 ].object;
 
-					console.log(" Hit player",collidedObject.userData.type);
-					//audiomanager.sprites.play('drum1');
-					if(collidedObject.userData.type=="hero" ){ 
+					console.log(" Hit player",collidedObject);
+					console.log("herohit");
+					spaceship.hp -=1;
+					console.log("hero hp ", spaceship.hp);
+					cleanBullet(b, "enemy");
+						
+					/* if(collidedObject.userData.type=="hero" ){ 
+						console.log("herohit");
 						spaceship.hp -=1;
 						cleanBullet(b);
-					}
+					} */
 				}
 
 			}	
 		}) 
-	}) //end of enemy bullets
+	}) //end of enemy bullets 
 
 }
 
@@ -656,7 +665,7 @@ function cleanByUserDataID(id){
 	)
 }
 
-function cleanBullet(b){
+function cleanBullet(b, shooter){
 	//console.log("cleaning");
 	b.mesh.traverse((o) => {
 		if (o.isMesh){
@@ -669,9 +678,19 @@ function cleanBullet(b){
 		
 	  });
 	
-	const index = spaceship.bullets.indexOf(b);
-	if (index > -1) {
-		spaceship.bullets.splice(index, 1);
+	if (shooter == "enemy"){
+		enemies.forEach(e=>{
+			const index = e.bullets.indexOf(b);
+			if (index > -1) {
+				e.bullets.splice(index, 1);
+			}
+		})
+		
+	}else {
+		const index = spaceship.bullets.indexOf(b);
+		if (index > -1) {
+			spaceship.bullets.splice(index, 1);
+		}
 	}
 	renderer.renderLists.dispose();
 
@@ -737,8 +756,16 @@ function createEnemy(position, hp){
 			enemy.gltf="";
 			//gltf2.scene.name="enemy_"+enemycount.toString();
 			//console.log(gltf2);
-			var geom = new THREE.IcosahedronGeometry(10,1)
+			var geom = new THREE.IcosahedronGeometry(10,0)
 			var material = new THREE.MeshStandardMaterial( {color: Colors.darkorange} );
+
+			var edges = new THREE.EdgesGeometry(geom,0.1);
+			enemy.lines = new THREE.LineSegments( edges, new THREE.LineDashedMaterial( { color: 0xffffff, emissive: Colors.darkorange,
+				emissiveIntensity: 1.5, linewidth: 1,
+				scale: 1,
+				dashSize: 1,
+				gapSize: 2, } ) );
+
 			enemy.mesh = new THREE.Mesh( geom, material );    
 			enemy.id=objectId.valueOf();
 
@@ -755,16 +782,8 @@ function createEnemy(position, hp){
 
 			  }});
 
-			//console.log(gltf2);
-			//enemy.mesh.rotateY(3);
-			//enemy.mesh.rotateZ(2);
-			//enemy.mesh.userData.id="enemy";
-			//enemy.mesh.userData.eid=enemycount;
-		
-			//var newMaterial = new THREE.MeshToonMaterial({color: Colors.darkkblue, emissive: Colors.darkkblue, wireframe:true});
-
 			enemy.mesh.position.copy(spaceship.mesh.getWorldPosition());
-			enemy.mesh.position.z-=200;
+			enemy.mesh.position.z-=400;
 			enemy.mesh.position.y+=Math.random()*Math.PI+normalize(Math.random(),0,1,-1,1);
 			enemy.mesh.position.x+=normalize(Math.random(),0,1,-120,200);
 
@@ -773,6 +792,10 @@ function createEnemy(position, hp){
 				enemies.push(enemy);
 				
 			scene.add(enemy.mesh);	
+			scene.add(enemy.lines);
+
+			
+			//scene.add( line );
 			//spaceship.mesh.material.emissive.setHex(Colors.pink);
 		
 			
@@ -805,21 +828,22 @@ function updateEnemy(delta){
 			return;
 		}
 
-		e.mesh.position.z-=3.3*flyControls.speed;
-
+		e.lines.position.z = e.mesh.position.z-=3.3*flyControls.speed;
+		
 		angle += delta * angleSpeed * normalize(Math.random(),0,1,-10,10);
    		radius -= delta * radialSpeed * normalize(Math.random(),0,1,-10,10);
 
 		t += 0.002;          
 	
-		e.mesh.position.y += e.offsety;
-		e.mesh.position.x += e.offsetx;
-		e.mesh.rotation.x += Math.floor(Math.random()*3)*0.01;
-		if(isbeat == true){
-			e.mesh.rotation.x += Math.floor(Math.random()*2)*0.01;
-			e.mesh.rotation.z += Math.floor(Math.random()*2)*0.01;
+		e.lines.position.y = e.mesh.position.y += e.offsety;
+		e.lines.position.x = e.mesh.position.x += e.offsetx;
+		e.lines.rotation.x = e.mesh.rotation.x += Math.floor(Math.random()*3)*0.01;
+		
+		/* if(isbeat == true){
+			e.lines.rotation.x = e.mesh.rotation.x += Math.floor(Math.random()*2)*0.01;
+			e.lines.rotation.z = e.mesh.rotation.z += Math.floor(Math.random()*2)*0.01;
 	
-		}
+		} */
 		var bPos = new THREE.Vector3(e.mesh.position.x,e.mesh.position.y,e.mesh.position.z);
 		var sPos = new THREE.Vector3(spaceship.mesh.position.x,spaceship.mesh.position.y,spaceship.mesh.position.z);
 
@@ -830,7 +854,7 @@ function updateEnemy(delta){
 			}
 
 			if(isbeat){
-				if(beatCount%4 ==0 ) e.bulletMax+=1;
+				if(beatCount%2 ==0 ) e.bulletMax+=1;
 			}
 		if (bPos.distanceTo(sPos) < 3000){
 			//cleanBullet(e);
