@@ -13,7 +13,7 @@
   "devDependencies": {},
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "index.js"
+    "start": "node index.js"
   },
   "author": "Ilkka Turunen",
   "license": "COMMERCIAL - SEE LICENCE IN LICENSE.txt"
