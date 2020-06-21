@@ -11,6 +11,7 @@ var LevelAudioManager = function(){
     this.shoot=[];
     this.eshoot;
     this.analyser;
+    this.src;
     this.bpm=100;
 }
 
@@ -77,13 +78,14 @@ LevelAudioManager.prototype.loadLevelAudio = function (){
     
 LevelAudioManager.prototype.createAnalyser = function (){
     
-  
-	this.analyser = Howler.ctx.createAnalyser();
-    // Connect the masterGain -> analyser (disconnecting masterGain -> destination)
-    Howler.masterGain.connect(this.analyser);
-    this.analyser.fftSize = 2048;
-    var bufferLength = this.analyser.frequencyBinCount;
-    var dataArray = new Uint8Array(bufferLength);
+  console.log(this.bmg)
+  let context = this.bmg._sounds[0]._node.context; 
+  this.src = this.bmg._sounds[0]._node.bufferSource; 
+  this.analyser = context.createAnalyser();
+  this.bmg._sounds[0]._node.bufferSource.connect(this.analyser); 
+  this.analyser.fftSize = 512; 
+  let bufferLength = this.analyser.frequencyBinCount; 
+  dataArray = new Uint8Array(bufferLength);
   
     // Get the Data array
     this.analyser.getByteTimeDomainData(dataArray);

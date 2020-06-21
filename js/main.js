@@ -56,6 +56,7 @@ function init() {
     // Play music
     audiomanager.bmg.once('load', function(){
 				audiomanager.bmg.play();
+				//audiomanager.createAnalyser();
 				beatTimer();
 				document.getElementById("loading").classList.add('hidden');
 
@@ -350,6 +351,7 @@ var audiomanager;
 function createSound(){
 	audiomanager = new LevelAudioManager();
 	audiomanager.loadLevelAudio();
+	
 }
 /**
  * Main Loop
@@ -361,7 +363,7 @@ var shootingTarget;
 
 function onDocumentMouseDown( event ) {
 
-	//console.log("AHA!")
+	console.log("AHA!")
 
     event.preventDefault();
 
@@ -376,6 +378,7 @@ function onDocumentMouseDown( event ) {
     if ( intersects.length > 0 ) {
 
 		shootBullets(intersects[ 0 ].object, spaceship);
+		//intersects[ 0 ].object.material.emissive.setHex(Colors.pink);
 
         //if(typeof intersects[ 0 ].object.material.emissive != "undefined" )  intersects[ 0 ].object.material.emissive.setHex(Colors.pink);
 
@@ -385,7 +388,8 @@ function onDocumentMouseDown( event ) {
 
 }
 
-document.addEventListener( 'mousedown', onDocumentMouseDown, false );
+var world = document.getElementById('world');
+world.addEventListener( 'mousedown', onDocumentMouseDown, false );
 
 var raycaster = new THREE.Raycaster();
 var isbeat=true;

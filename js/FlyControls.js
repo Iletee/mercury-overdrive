@@ -153,14 +153,14 @@ var FlyControls = function ( object, domElement ) {
 
 	this.mousemove = function ( event ) {
 		
-		document.getElementById("aiming").style.left = event.clientX-50+"px";
-		document.getElementById("aiming").style.top = event.clientY-50+"px";
+		//document.getElementById("aiming").style.left = event.clientX-50+"px";
+		//document.getElementById("aiming").style.top = event.clientY-50+"px";
 
 		if (  this.dragToLook || this.mouseStatus > 0 ) {
 			
 		
-			document.getElementById("aiming").style.left = event.clientX-50+"px";
-			document.getElementById("aiming").style.top = event.clientY-50+"px";
+			//document.getElementById("aiming").style.left = event.clientX-50+"px";
+			//document.getElementById("aiming").style.top = event.clientY-50+"px";
 
 			var container = this.getContainerDimensions();
 			var halfWidth = container.size[ 0 ] / 2;
