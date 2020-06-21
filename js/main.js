@@ -374,7 +374,7 @@ function onDocumentMouseDown( event ) {
 
 	raycaster.setFromCamera( mouse, camera );   
 
-    var intersects = raycaster.intersectObjects( scene.children, true );
+    var intersects = raycaster.intersectObjects( collidableMesh, true );
     if ( intersects.length > 0 ) {
 
 		shootBullets(intersects[ 0 ].object, spaceship);
@@ -576,8 +576,9 @@ function updateBullets(delta){
 				}
 				if(collidedObject.userData.type=="enemy" ){ 
 					enemies.forEach(e =>{
-						console.log(e.id,collidedObject.userData);
+						//console.log(e.id,collidedObject.userData);
 						if(e.id==collidedObject.userData.id){
+							audiomanager.ehit1.play();
 							e.hp-=1;
 							console.log("E HEALTH ",e.hp);
 							cleanBullet(b);

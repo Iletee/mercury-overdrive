@@ -1,4 +1,4 @@
-FROM node:lts-alpine
+FROM amd64/node:lts-alpine
 
 # Install tools required for project
 # Run `docker build --no-cache .` to update dependencies
@@ -17,5 +17,5 @@ RUN npm install
 
 # This results in a single layer image
 
-ENTRYPOINT ["/node/src/project/"]
-CMD ["entrypoint.sh"]
+ENTRYPOINT ["/node/src/project"]
+CMD ["npx http-server"]

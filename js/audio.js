@@ -12,6 +12,7 @@ var LevelAudioManager = function(){
     this.eshoot;
     this.analyser;
     this.src;
+    this.ehit1;
     this.bpm=100;
 }
 
@@ -30,6 +31,11 @@ LevelAudioManager.prototype.loadLevelAudio = function (){
       
       this.eshoot = new Howl({
         src: ['../assets/audio/effects/shoot.wav']
+      });
+
+      this.ehit1 = new Howl({
+        src: ['../assets/audio/effects/drums-hit3.wav'],
+        volume: 0.5
       });
 
 
