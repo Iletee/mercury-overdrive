@@ -91,7 +91,7 @@ var FlyControls = function ( object, domElement ) {
 
 			case 16: /* shift */ this.movementSpeedMultiplier = 2; break;
 
-			case 87: /*W*/ this.moveState.forward = 0; this.speed+=1; break;
+			case 87: /*W*/ this.moveState.forward = 0; if(this.speed<3) this.speed+=1; break;
 			case 83: /*S*/ this.moveState.back = 0; this.speed-=1; break;
 
 			case 65: /*A*/ this.moveState.left = 0; break;
