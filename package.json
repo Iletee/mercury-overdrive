@@ -13,7 +13,8 @@
   "devDependencies": {},
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "install": "wget  --no-check-certificate 'https://docs.google.com/uc?export=download&id=16xbgHI_e9R5tb2rAtOfy2HM6WhJfrHO4' -O assets.zip && unzip assets.zip",
+    "install": "wget  --no-check-certificate 'https://docs.google.com/uc?export=download&id=16xbgHI_e9R5tb2rAtOfy2HM6WhJfrHO4' -O assets.zip",
+    "postinstall": "unzip assets.zip",
     "start": "node index.js"
   },
   "author": "Ilkka Turunen",
