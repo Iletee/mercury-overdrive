@@ -34,8 +34,8 @@ LevelAudioManager.prototype.loadLevelAudio = function (){
       });
 
       this.ehit1 = new Howl({
-        src: ['../assets/audio/effects/drums-hit3.wav'],
-        volume: 0.5
+        src: ['../assets/audio/effects/drums-hit1.wav'],
+        volume: 0.4
       });
 
 
