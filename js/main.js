@@ -363,7 +363,7 @@ var shootingTarget;
 
 function onDocumentMouseDown( event ) {
 
-	console.log("AHA!")
+	//console.log("AHA!")
 
     event.preventDefault();
 
@@ -452,10 +452,10 @@ function updateBeat(time){
 
 function beatTimer(){
 	var timeout = 60000/audiomanager.bpm;
-	console.log(timeout,audiomanager.bpm)
+	//console.log(timeout,audiomanager.bpm)
 
 	setInterval(function(){ 
-		console.log("BEAT");
+		//console.log("BEAT");
 		isbeat=true;
 		beatCount+=1;
 		updateSky();
@@ -519,7 +519,7 @@ function shootBullets(target, shooter){
 
 		//Play PEW
 		if(shooter.type=="hero"){
-			console.log(bulletpitch)
+			//console.log(bulletpitch)
 			audiomanager.shoot[bulletpitch].play();
 			bulletpitch=Math.floor(Math.random()*audiomanager.shoot.length);
 			
@@ -567,7 +567,7 @@ function updateBullets(delta){
 				var collidedObject = collisionResults[ 0 ].object;
 				spaceship.score+=10;
 
-				console.log(" Hit ",collidedObject.userData.type);
+				//console.log(" Hit ",collidedObject.userData.type);
 				//audiomanager.sprites.play('drum1');
 				if(collidedObject.userData.type=="hero" ){ 
 
@@ -580,7 +580,7 @@ function updateBullets(delta){
 						if(e.id==collidedObject.userData.id){
 							audiomanager.ehit1.play();
 							e.hp-=1;
-							console.log("E HEALTH ",e.hp);
+							//console.log("E HEALTH ",e.hp);
 							cleanBullet(b);
 						}
 					})
@@ -631,10 +631,10 @@ function updateBullets(delta){
 				if ( collisionResults.length > 0 && collisionResults[0].distance < directionVector.length() ) {
 					var collidedObject = collisionResults[ 0 ].object;
 
-					console.log(" Hit player",collidedObject);
-					console.log("herohit");
+					//console.log(" Hit player",collidedObject);
+					//console.log("herohit");
 					spaceship.hp -=1;
-					console.log("hero hp ", spaceship.hp);
+					//console.log("hero hp ", spaceship.hp);
 					cleanBullet(b, "enemy");
 						
 					/* if(collidedObject.userData.type=="hero" ){ 
@@ -656,7 +656,7 @@ function cleanByUserDataID(id){
 		//console.log("new child ", id, object.userData.id)
 		if (object.name == id){
 
-			console.log("found the bASTARD ",object);
+			//console.log("found the bASTARD ",object);
 			scene.remove(object);
 			object.traverse( function ( child ) {
 
@@ -762,7 +762,7 @@ function createEnemy(position, hp){
 		enemy.score=1000;
 		enemy.hp = 15;
 
-		console.log("enemy time");
+		//console.log("enemy time");
 
 			// get the vertices
 			var objectId = Math.random().toString(36).substr(2, 9);	
