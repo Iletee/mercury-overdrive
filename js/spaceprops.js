@@ -9,6 +9,46 @@ var Planet = function(){
     this.mesh = new THREE.Mesh( geom, material );    
 }
 
+var Mysterysplosion = function(x,y,z){
+	// create the particle variables
+	var particleCount = 1800,
+	particles = new THREE.Geometry(),
+	pMaterial = new THREE.ParticleBasicMaterial({
+	color: 0xFFFFFF,
+	size: 20
+	});
+
+	// now create the individual particles
+	for (var p = 0; p < particleCount; p++) {
+		// create a particle with random
+		// position values, -250 -> 250
+		var pX = Math.random() * 500 - 250,
+		pY = Math.random() * 500 - 250,
+		pZ = Math.random() * 500 - 250,
+		particle = new THREE.Vertex(
+			new THREE.Vector3(pX, pY, pZ)
+		);
+		particle.velocity = new THREE.Vector3(
+			0,              // x
+			-Math.random(), // y: random vel
+			0);             // z
+		// add it to the geometry
+		particles.vertices.push(particle);
+	}
+
+	// create the particle system
+	this.particleSystem = new THREE.ParticleSystem(
+	particles,
+	pMaterial);
+
+	this.particleSystem.position.x=x;
+	this.particleSystem.position.y=y;
+	this.particleSystem.position.z=z;
+
+
+
+}
+
 
 var Cloud = function(){
 	// Create an empty container that will hold the different parts of the cloud
@@ -165,4 +205,4 @@ Sky.prototype.moveWaves = function (){
 
 }
 
-export { Sky, Cloud, Planet };
+export { Sky, Cloud, Planet, Mysterysplosion };

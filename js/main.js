@@ -2,7 +2,7 @@ import * as THREE from '../node_modules/three/build/three.module.js'
 import { FlyControls } from './FlyControls.js';
 import { HeadsUpDisplay } from './HeadsUpDisplay.js';
 import { LevelAudioManager } from './audio.js';
-import { Sky, Cloud, Planet } from './spaceprops.js';
+import { Sky, Cloud, Planet, Mysterysplosion } from './spaceprops.js';
 import { Colors, Enemy1 } from './store.js';
 
 import  * as Howler from '../node_modules/howler/dist/howler.js';
@@ -252,7 +252,7 @@ function createLights() {
 // Now we instantiate the sky and push its center a bit
 // towards the bottom of the screen
 
-var sky,planet;
+var sky,planet,splosion;
 
 function createSky(){
 	sky = new Sky();
@@ -270,6 +270,22 @@ function createSky(){
 	sky.clouds.forEach(c =>{
 		collidableMesh.push(c.mesh);
 	})
+}
+
+function createSplosion(){
+
+	splosion = new Mysterysplosion(camera.position.x,camera.position.y,camera.position.z);
+	scene.add(splosion.particleSystem);
+	console.log("particles ",splosion.particleSystem.x, splosion.particleSystem.y,splosion.particleSystem.z, camera.position.x,camera.position.y,camera.position.z);
+	isSplosion = true;
+}
+
+function updateSplosion(){
+	if (isSplosion){
+		splosion.particleSystem.rotation.y += 0.01;
+		splosion.particleSystem.z-=3.3*flyControls.speed;
+
+	}
 }
 
 /* Yeah so this bit is horrible but cant help it right this moment */
@@ -393,6 +409,7 @@ world.addEventListener( 'mousedown', onDocumentMouseDown, false );
 
 var raycaster = new THREE.Raycaster();
 var isbeat=true;
+var isSplosion=false;
 function loop(){
 	// Level main loop 
 	// Rotate the propeller, the sea and the sky
@@ -416,6 +433,7 @@ function loop(){
     // render the scene
 	//updateSky(delta);
 	updatePlanet();
+	updateSplosion();
 	
 	updateBullets(delta);
 	updatePlane();
@@ -425,7 +443,7 @@ function loop(){
 
 	checkProgression();
 
-	
+	if(state==3 && !isSplosion) createSplosion();
 	if(state>=2){
 		//console.log("PHASE 1");
 		createEnemy();
@@ -433,6 +451,7 @@ function loop(){
 
 		if(enemies.length==0) state+=1;
 	}
+
 
 	updateBeat(clock);
 	
