@@ -1,6 +1,8 @@
+## Mercury Overdrive
+A three.js 3D experience extragavanza in experimentation
+
 ## Running 
 use the command
-http-server to run this on localhost:8080. 
-
+npm run to run
 #Sources of stuff
 https://www.onemotion.com/drum-machine/
