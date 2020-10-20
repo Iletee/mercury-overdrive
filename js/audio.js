@@ -19,7 +19,8 @@ var LevelAudioManager = function(){
 LevelAudioManager.prototype.loadLevelAudio = function (){
 	this.bmg = new Howl({
         src: ['../assets/audio/263_full_night-drive-synthwave_0168_preview.mp3'],
-        loop:true
+        loop:true,
+        volume:0.6
       });
     
     this.bmp=100;
