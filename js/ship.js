@@ -37,6 +37,14 @@ function buildShipGeometry() {
 	return geo;
 }
 
+// ramp a steering axis toward its target: quick but never instant
+function slew(current, target, dt) {
+	const rate = Math.abs(target) > Math.abs(current) ? 4.2 : 6.0; // attack / release per second
+	const d = target - current;
+	const step = rate * dt;
+	return Math.abs(d) <= step ? target : current + Math.sign(d) * step;
+}
+
 export class PlayerShip {
 	constructor(scene) {
 		this.scene = scene;
@@ -81,8 +89,21 @@ export class PlayerShip {
 		this.invuln = 0;
 		this.radius = CONFIG.shipRadius;
 
+		// slewed steering inputs: keys ramp in/out instead of snapping
+		this.steerVX = 0;
+		this.steerVY = 0;
+		// the camera trails the ship's heading with its own smoothed angles
+		this.camYaw = 0;
+		this.camPitch = 0;
+		// barrel roll state: {dir, t} while rolling, else null
+		this.barrel = null;
+		this._prevQ = false;
+		this._prevE = false;
+		this._hurtBlink = 0;
+
 		this._euler = new THREE.Euler(0, 0, 0, 'YXZ');
 		this._fwd = new THREE.Vector3();
+		this._right = new THREE.Vector3();
 		this._camPos = new THREE.Vector3();
 		this._camTarget = new THREE.Vector3();
 		this._camQuat = new THREE.Quaternion();
@@ -99,7 +120,9 @@ export class PlayerShip {
 
 	update(dt, input) {
 		// --- steering: WASD maps to a target heading inside a cone; releasing
-		// recenters, so it flies like a rail fighter with lateral authority
+		// recenters. Keys are slewed (ramp in ~0.25s) so nothing snaps, and the
+		// bank responds faster than the heading so a keypress reads as a lean
+		// first, then the turn follows.
 		let tx = input.steerX;
 		let ty = input.steerY;
 		// soft outer wall: steer back only when drifting far outside the field
@@ -108,21 +131,50 @@ export class PlayerShip {
 		tx = THREE.MathUtils.clamp(tx, -1, 1);
 		ty = THREE.MathUtils.clamp(ty, -1, 1);
 
-		const targetYaw = -tx * CONFIG.maxYaw;
-		const targetPitch = ty * CONFIG.maxPitch;
+		this.steerVX = slew(this.steerVX, tx, dt);
+		this.steerVY = slew(this.steerVY, ty, dt);
+
+		const targetYaw = -this.steerVX * CONFIG.maxYaw;
+		const targetPitch = this.steerVY * CONFIG.maxPitch;
 		const k = Math.min(1, dt * CONFIG.steerLerp);
 		this.yaw += (targetYaw - this.yaw) * k;
 		this.pitch += (targetPitch - this.pitch) * k;
 
-		// bank hard into turns + manual roll
-		let targetRoll = -tx * 0.9 + (targetYaw - this.yaw) * 2.0;
-		if (input.rollLeft) targetRoll += 1.3;
-		if (input.rollRight) targetRoll -= 1.3;
-		this.roll += (targetRoll - this.roll) * Math.min(1, dt * 8);
+		// bank leads the turn: driven by the raw key, not the slewed heading
+		const targetRoll = -tx * 1.15 + (targetYaw - this.yaw) * 0.8;
+		this.roll += (targetRoll - this.roll) * Math.min(1, dt * 10);
 
+		// --- barrel roll (Q/E): full 360 spin + lateral dodge + brief grace
+		const qEdge = input.rollLeft && !this._prevQ;
+		const eEdge = input.rollRight && !this._prevE;
+		this._prevQ = input.rollLeft;
+		this._prevE = input.rollRight;
+		if (!this.barrel && (qEdge || eEdge)) {
+			this.barrel = { dir: qEdge ? 1 : -1, t: 0 };
+			this.invuln = Math.max(this.invuln, CONFIG.barrelTime + 0.1);
+		}
+		let extraRoll = 0;
+		if (this.barrel) {
+			this.barrel.t += dt / CONFIG.barrelTime;
+			if (this.barrel.t >= 1) {
+				this.barrel = null;
+			} else {
+				const p = this.barrel.t;
+				const ease = p * p * (3 - 2 * p);
+				extraRoll = this.barrel.dir * Math.PI * 2 * ease;
+				// sideways dodge, strongest mid-roll
+				this._right.set(1, 0, 0).applyQuaternion(this.quaternion);
+				this.position.addScaledVector(this._right,
+					-this.barrel.dir * CONFIG.barrelDodge * Math.sin(p * Math.PI) * dt);
+			}
+		}
+
+		// heading quaternion excludes the spin (aim/flight stay stable mid-roll);
+		// the visible mesh gets the full barrel rotation
 		this._euler.set(this.pitch, this.yaw, this.roll);
 		this.quaternion.setFromEuler(this._euler);
-		this.group.quaternion.copy(this.quaternion);
+		this._euler.set(this.pitch, this.yaw, this.roll + extraRoll);
+		this.group.quaternion.setFromEuler(this._euler);
 
 		// --- throttle
 		this.boostEngaged = input.boosting && this.boost > (this.boostEngaged ? 0 : 12);
@@ -140,9 +192,10 @@ export class PlayerShip {
 		this.forward(this._fwd);
 		this.position.addScaledVector(this._fwd, this.speed * dt);
 
-		// --- timers & visuals
-		if (this.invuln > 0) {
-			this.invuln -= dt;
+		// --- timers & visuals (blink only after damage, not during barrel grace)
+		if (this.invuln > 0) this.invuln -= dt;
+		if (this._hurtBlink > 0) {
+			this._hurtBlink -= dt;
 			this.edges.material.opacity = (Math.sin(performance.now() * 0.03) > 0) ? 1 : 0.15;
 		} else {
 			this.edges.material.opacity = 1;
@@ -156,18 +209,22 @@ export class PlayerShip {
 	}
 
 	updateCamera(camera, dt) {
-		// chase rig: yaw/pitch follow fully, roll only partially (keeps stomachs settled)
-		this._euler.set(this.pitch, this.yaw, this.roll * 0.35);
+		// the camera trails the ship's heading: during a turn the ship slides
+		// toward the side of the screen it's turning to, so you can read where
+		// you're going instead of the whole view whipping around
+		const kc = Math.min(1, dt * 3.8);
+		this.camYaw += (this.yaw - this.camYaw) * kc;
+		this.camPitch += (this.pitch - this.camPitch) * kc;
+		this._euler.set(this.camPitch, this.camYaw, this.roll * 0.28);
 		this._camQuat.setFromEuler(this._euler);
 
-		this._camPos.set(0, 13, 46).applyQuaternion(this._camQuat).add(this.position);
-		const k = Math.min(1, dt * 10);
-		camera.position.lerp(this._camPos, k);
+		this._camPos.set(0, 13, 48).applyQuaternion(this._camQuat).add(this.position);
+		camera.position.lerp(this._camPos, Math.min(1, dt * 8));
 
 		this.forward(this._fwd);
-		this._camTarget.copy(this.position).addScaledVector(this._fwd, 220);
+		this._camTarget.copy(this.position).addScaledVector(this._fwd, 260);
 		camera.lookAt(this._camTarget);
-		camera.quaternion.slerp(this._camQuat, 0.15); // blend in a touch of bank
+		camera.quaternion.slerp(this._camQuat, 0.12); // blend in a touch of bank
 
 		if (this._shake > 0) {
 			const s = this._shake * this._shake * 6;
@@ -185,6 +242,7 @@ export class PlayerShip {
 		if (this.invuln > 0 || !this.alive) return false;
 		this.hp -= n;
 		this.invuln = CONFIG.invulnTime;
+		this._hurtBlink = CONFIG.invulnTime;
 		this._shake = 1;
 		return true;
 	}
@@ -199,6 +257,10 @@ export class PlayerShip {
 	reset() {
 		this.position.set(0, 0, 0);
 		this.yaw = this.pitch = this.roll = 0;
+		this.steerVX = this.steerVY = 0;
+		this.camYaw = this.camPitch = 0;
+		this.barrel = null;
+		this._hurtBlink = 0;
 		this.quaternion.identity();
 		this.group.quaternion.identity();
 		this.speed = CONFIG.cruiseSpeed;

@@ -184,7 +184,7 @@ export class HUD {
 			['CLICK', 'fire'],
 			['SHIFT', 'boost'],
 			['X', 'brake'],
-			['Q/E', 'roll'],
+			['Q/E', 'barrel roll'],
 		];
 		controls.forEach(([key, desc], i) => {
 			if (i > 0) legend.appendChild(el('span', 'mo-title__dot', '·'));

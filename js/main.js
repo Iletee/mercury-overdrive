@@ -15,6 +15,7 @@ import { AsteroidField } from './field.js';
 import { WeaponSystem } from './weapons.js';
 import { EnemyManager } from './enemies.js';
 import { FXSystem } from './fx.js';
+import { MicroDebris } from './debris.js';
 import { SynthwaveEngine } from './music.js';
 import { HUD } from './hud.js';
 
@@ -63,6 +64,7 @@ const ship = new PlayerShip(scene);
 const weapons = new WeaponSystem(scene, camera, ship, field);
 const enemies = new EnemyManager(scene, ship, weapons);
 const fx = new FXSystem(scene, camera);
+const debris = new MicroDebris(scene);
 
 // --- event wiring ------------------------------------------------------------
 weapons.events.onShoot = () => music.playerShoot();
@@ -111,6 +113,7 @@ music.onBeat(({ beat, bar }) => {
 	field.beatPulse(0.9);
 	backdrop.beatPulse(1);
 	fx.beatPulse(1);
+	debris.beatPulse(1);
 	hud.beatPulse();
 	enemies.beatPulse();
 	if (beat % 2 === 0) ship.beatPulse();
@@ -189,6 +192,7 @@ function updatePlaying(dt) {
 	enemies.update(dt);
 	weapons.update(dt, input, enemies.active);
 	fx.update(dt, ship.speed, ship.position);
+	debris.update(dt, ship.position, ship.speed);
 	backdrop.update(dt, ship.position, progress());
 
 	// boost audio state
@@ -245,6 +249,7 @@ function updateIdle(dt) {
 	}
 	field.update(dt, ship.position.z);
 	fx.update(dt, state === State.TITLE ? 120 : 0, ship.position);
+	debris.update(dt, ship.position, state === State.TITLE ? 120 : 0);
 	backdrop.update(dt, camera.position, progress());
 }
 

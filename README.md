@@ -26,7 +26,7 @@ Then open http://localhost:3000
 | Click (hold) | Fire — bolts converge on the crosshair; near-target shots lock on and home |
 | Shift | Boost (drains the boost meter) |
 | X | Brake |
-| Q / E | Roll |
+| Q / E | Barrel roll — dodges sideways with a moment of invulnerability |
 
 The route through the field forks at the split rings — pink lane right,
 cyan lane left — and merges again downstream.

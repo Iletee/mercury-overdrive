@@ -31,14 +31,16 @@ export const CONFIG = {
 	],
 	routeRingSpacing: 1500,  // guidance rings along each corridor
 
-	// Flight model (WASD steering; sharp attack, recenters on release)
-	cruiseSpeed: 360,
-	brakeSpeed: 180,
-	boostSpeed: 940,
+	// Flight model (WASD steering; slewed input, bank leads the turn)
+	cruiseSpeed: 380,
+	brakeSpeed: 190,
+	boostSpeed: 980,
 	speedLerp: 2.4,          // how fast speed approaches target
 	maxYaw: 0.74,            // rad, steering cone half-angle
 	maxPitch: 0.58,
-	steerLerp: 9.5,          // sharpness of steering response
+	steerLerp: 5.5,          // heading response (bank is faster, see ship.js)
+	barrelTime: 0.55,        // s for a full Q/E barrel roll
+	barrelDodge: 760,        // peak lateral dodge speed during a barrel roll
 	boostDrain: 34,          // per second
 	boostRegen: 16,
 	boostMax: 100,
