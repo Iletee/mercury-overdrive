@@ -98,12 +98,15 @@ export class PlayerShip {
 	}
 
 	update(dt, input) {
-		// --- steering: mouse maps to a target heading inside a cone; sharp lerp toward it
-		let tx = THREE.MathUtils.clamp(input.mouseX, -1, 1);
-		let ty = THREE.MathUtils.clamp(input.mouseY, -1, 1);
-		// soft corridor: steer back when drifting far off the field axis
-		tx -= THREE.MathUtils.clamp(this.position.x / 2600, -0.55, 0.55);
-		ty -= THREE.MathUtils.clamp(this.position.y / 1600, -0.55, 0.55);
+		// --- steering: WASD maps to a target heading inside a cone; releasing
+		// recenters, so it flies like a rail fighter with lateral authority
+		let tx = input.steerX;
+		let ty = input.steerY;
+		// soft outer wall: steer back only when drifting far outside the field
+		tx -= Math.sign(this.position.x) * Math.max(0, (Math.abs(this.position.x) - 2300) / 800);
+		ty -= Math.sign(this.position.y) * Math.max(0, (Math.abs(this.position.y) - 1400) / 600);
+		tx = THREE.MathUtils.clamp(tx, -1, 1);
+		ty = THREE.MathUtils.clamp(ty, -1, 1);
 
 		const targetYaw = -tx * CONFIG.maxYaw;
 		const targetPitch = ty * CONFIG.maxPitch;
@@ -111,11 +114,11 @@ export class PlayerShip {
 		this.yaw += (targetYaw - this.yaw) * k;
 		this.pitch += (targetPitch - this.pitch) * k;
 
-		// bank into turns + manual roll
-		let targetRoll = (targetYaw - this.yaw) * 3.2;
+		// bank hard into turns + manual roll
+		let targetRoll = -tx * 0.9 + (targetYaw - this.yaw) * 2.0;
 		if (input.rollLeft) targetRoll += 1.3;
 		if (input.rollRight) targetRoll -= 1.3;
-		this.roll += (targetRoll - this.roll) * Math.min(1, dt * 6);
+		this.roll += (targetRoll - this.roll) * Math.min(1, dt * 8);
 
 		this._euler.set(this.pitch, this.yaw, this.roll);
 		this.quaternion.setFromEuler(this._euler);
@@ -124,7 +127,6 @@ export class PlayerShip {
 		// --- throttle
 		this.boostEngaged = input.boosting && this.boost > (this.boostEngaged ? 0 : 12);
 		let targetSpeed = CONFIG.cruiseSpeed;
-		if (input.throttleUp) targetSpeed = CONFIG.cruiseSpeed * 1.35;
 		if (input.braking) targetSpeed = CONFIG.brakeSpeed;
 		if (this.boostEngaged) {
 			targetSpeed = CONFIG.boostSpeed;

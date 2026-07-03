@@ -6,6 +6,11 @@
 import * as THREE from 'three';
 import { Colors, CONFIG } from './store.js';
 
+function smoothstep(edge0, edge1, x) {
+	const t = Math.min(1, Math.max(0, (x - edge0) / (edge1 - edge0)));
+	return t * t * (3 - 2 * t);
+}
+
 function mulberry32(a) {
 	return function () {
 		a |= 0; a = (a + 0x6d2b79f5) | 0;
@@ -86,6 +91,57 @@ export class AsteroidField {
 		this._n = new THREE.Vector3();
 
 		this._buildGate();
+		this._buildRouteRings();
+	}
+
+	// Route centerlines at course-distance p (p = -z, 0..courseLength).
+	// One snaking corridor, splitting into two around each fork. When split,
+	// index 0 is the right/pink branch, index 1 the left/cyan branch.
+	routeCenters(p) {
+		// the route snakes, but straightens out at the start and at the gate
+		const amp = smoothstep(0, 3000, p) * smoothstep(CONFIG.courseLength, CONFIG.courseLength - 4000, p);
+		const baseX = Math.sin(p * 0.00022) * 420 * amp;
+		const baseY = Math.sin(p * 0.00035 + 1.3) * 300 * amp;
+		let split = 0;
+		for (const f of CONFIG.forks) {
+			const t = smoothstep(f.start, f.start + CONFIG.forkBlend, p) *
+				smoothstep(f.end, f.end - CONFIG.forkBlend, p);
+			if (t > split) split = t;
+		}
+		if (split <= 0.02) return [{ x: baseX, y: baseY }];
+		const off = CONFIG.forkSpread * split;
+		return [
+			{ x: baseX + off, y: baseY + 120 * split },
+			{ x: baseX - off, y: baseY - 120 * split },
+		];
+	}
+
+	_buildRouteRings() {
+		const transforms = [];
+		for (let p = 1200; p < CONFIG.courseLength - 800; p += CONFIG.routeRingSpacing) {
+			const centers = this.routeCenters(p);
+			centers.forEach((c, i) => {
+				transforms.push({ x: c.x, y: c.y, z: -p, split: centers.length > 1, right: i === 0 });
+			});
+		}
+		const geo = new THREE.TorusGeometry(180, 3.5, 6, 40);
+		this._ringMat = new THREE.MeshBasicMaterial({
+			color: 0xffffff, transparent: true, opacity: 0.4,
+			blending: THREE.AdditiveBlending, depthWrite: false,
+		});
+		const rings = new THREE.InstancedMesh(geo, this._ringMat, transforms.length);
+		const m = new THREE.Matrix4();
+		const col = new THREE.Color();
+		transforms.forEach((t, i) => {
+			m.makeTranslation(t.x, t.y, t.z);
+			rings.setMatrixAt(i, m);
+			if (t.split) col.setHex(t.right ? Colors.pink : Colors.cyan);
+			else col.setHex(Colors.cyan).multiplyScalar(0.55);
+			rings.setColorAt(i, col);
+		});
+		rings.instanceColor.needsUpdate = true;
+		rings.frustumCulled = false;
+		this.scene.add(rings);
 	}
 
 	_buildGate() {
@@ -119,17 +175,30 @@ export class AsteroidField {
 		if (frac >= 1) { this.chunks.set(index, []); return; } // clear space past the gate
 
 		const records = [];
-		const count = Math.round(13 + 27 * Math.sin(Math.min(1, frac * 1.15) * Math.PI * 0.5) * (0.75 + 0.5 * rng()));
+		const count = Math.round(18 + 34 * Math.sin(Math.min(1, frac * 1.15) * Math.PI * 0.5) * (0.75 + 0.5 * rng()));
 		for (let i = 0; i < count; i++) {
 			const roll = rng();
 			let r;
-			if (roll > 0.97) r = 220 + rng() * 340;        // rare giants inside the corridor
+			if (roll > 0.97) r = 220 + rng() * 340;        // rare giants inside the field
 			else if (roll > 0.8) r = 60 + rng() * 90;      // mid rocks
 			else r = 9 + rng() * 38;                        // shootable debris
-			records.push(this._spawn(rng,
-				(rng() * 2 - 1) * 1500,
-				(rng() * 2 - 1) * 950,
-				z0 - rng() * D, r));
+			const z = z0 - rng() * D;
+			let x = (rng() * 2 - 1) * 1700;
+			let y = (rng() * 2 - 1) * 1050;
+			// carve the flyable corridors: push rocks out of every route lane
+			const centers = this.routeCenters(-z);
+			for (const c of centers) {
+				const dx = x - c.x, dy = y - c.y;
+				const d = Math.hypot(dx, dy);
+				const clear = CONFIG.corridorRadius + r;
+				if (d < clear) {
+					const ang = d > 1 ? Math.atan2(dy, dx) : rng() * Math.PI * 2;
+					const out = clear + 40 + rng() * 260;
+					x = c.x + Math.cos(ang) * out;
+					y = c.y + Math.sin(ang) * out;
+				}
+			}
+			records.push(this._spawn(rng, x, y, z, r));
 		}
 		// backdrop monoliths: kilometre-class, parked outside the flight corridor
 		for (let i = 0; i < 2; i++) {
@@ -196,6 +265,7 @@ export class AsteroidField {
 		this.uniforms.uBeat.value = Math.max(0, this.uniforms.uBeat.value - dt * 4);
 		this.gate.rotation.z += dt * 0.4;
 		this._gateRing.scale.setScalar(1 + this.uniforms.uBeat.value * 0.03);
+		this._ringMat.opacity = 0.3 + this.uniforms.uBeat.value * 0.45;
 	}
 
 	// sphere vs field — used for ship collision. Returns {record, normal, depth} or null.

@@ -1,702 +1,759 @@
-// music.js — Procedural synthwave music + SFX engine for a Tron-style space shooter.
+// music.js — Procedural audio engine for a Tron-styled space shooter.
 //
-// Pure Web Audio API. No external assets, no libraries. Everything you hear —
-// pads, bass, drums, arps, leads and every sound effect — is synthesized on the
-// fly from oscillators, filters and noise buffers.
+// Pure Web Audio API. No imports, no external assets. Everything audible —
+// pads, kick, hats, snare, the 16th-note riff, every SFX — is synthesized on
+// the fly from oscillators, filters, WaveShapers and a shared noise buffer.
 //
-// Music uses the classic "lookahead scheduler" pattern ("A Tale of Two Clocks"):
-// a cheap setInterval wakes up frequently and schedules precisely-timed Web
-// Audio events a little bit into the future, using the AudioContext's own
-// sample-accurate clock for the actual note timing. UI callbacks (onBeat/onBar)
-// are fired via setTimeout delayed to line up with the *audible* moment so the
-// game's visuals stay locked to the music.
+// Two references drive the design:
+//   1) Daft Punk's Tron: Legacy score / "Derezzed" — dark, relentless,
+//      French-house-pumping electro. The signature is `pumpBus`: every kick
+//      ducks the pads/arp/bass bus and lets it snap back — the sidechain
+//      "breathing" that makes four-on-the-floor electro feel alive.
+//   2) Rez — player actions aren't sound layered on top of the music, they
+//      ARE the music. SFX are quantized to the 16th-note grid and pull their
+//      pitches from the track's scale, so rapid-fire shooting composes an
+//      ascending melody locked to the beat.
+//
+// Timing uses the classic lookahead-scheduler pattern ("A Tale of Two
+// Clocks"): a cheap setInterval wakes up every ~25ms and schedules
+// sample-accurate Web Audio events ~120ms into the future. onBeat/onBar are
+// fired via setTimeout delayed to land on the *audible* moment, so game
+// visuals stay locked to what the player actually hears.
 
 // ---------------------------------------------------------------------------
-// Constants — tweak the whole feel of the track from here.
+// Constants — tune the whole track from here.
 // ---------------------------------------------------------------------------
 
-const BPM_DEFAULT = 104;
-const STEPS_PER_BEAT = 4;                              // 16th-note resolution
-const BEATS_PER_BAR = 4;
-const STEPS_PER_BAR = STEPS_PER_BEAT * BEATS_PER_BAR;  // 16
+const BPM = 118;
+const SECONDS_PER_BEAT = 60 / BPM;
+const SECONDS_PER_16TH = SECONDS_PER_BEAT / 4;
+const STEPS_PER_BAR = 16;
 const BARS_PER_PHRASE = 8;
-const TOTAL_STEPS = STEPS_PER_BAR * BARS_PER_PHRASE;   // 128
 
-const LOOKAHEAD_MS = 25;          // how often the scheduler wakes up
-const SCHEDULE_AHEAD_S = 0.12;    // how far ahead of "now" we schedule audio
+const LOOKAHEAD_MS = 25;         // scheduler wake-up interval
+const SCHEDULE_AHEAD_SEC = 0.12; // how far ahead of "now" we schedule audio
 
-// 8-bar A-minor progression: i - VI - III - VII / i - VI - iv - V
-// (Am - F - C - G / Am - F - Dm - E). The final E is a borrowed dominant
-// (major third, G#) for real harmonic pull back into Am at the loop point.
-// `root` is derived automatically, one octave below the chord's own root tone.
-const PROGRESSION = [
-  { name: 'Am', triad: [45, 48, 52] },
-  { name: 'F',  triad: [41, 45, 48] },
-  { name: 'C',  triad: [48, 52, 55] },
-  { name: 'G',  triad: [43, 47, 50] },
-  { name: 'Am', triad: [45, 48, 52] },
-  { name: 'F',  triad: [41, 45, 48] },
-  { name: 'Dm', triad: [50, 53, 57] },
-  { name: 'E',  triad: [52, 56, 59] },
-].map((c) => ({ ...c, root: c.triad[0] - 12 }));
+function noteFreq(midi) { return 440 * Math.pow(2, (midi - 69) / 12); }
+function dbToGain(db) { return Math.pow(10, db / 20); }
 
-// 16-step arpeggio pattern: index into the chord's extended tone set, or null
-// for a rest. Deliberately syncopated so it doesn't feel like a metronome.
-const ARP_PATTERN = [0, null, 1, 2, null, 1, 0, 3, 2, null, 1, 0, 2, null, 3, 1];
+const MASTER_GAIN = 0.9;
+const MUSIC_BUS_GAIN = dbToGain(-8); // music sits ~-8dB of headroom
+const SFX_BUS_GAIN = 0.9;
 
-// Simple heroic 8-bar lead hook, generated from the chord tones so it always
-// stays "in key" — one short rising-and-falling phrase per bar, up an octave
-// from the pad register.
-function buildLeadMelody() {
-  const beatOffsets = [0, 6, 8, 12];
-  const degreeSeq = [0, 2, 1, 2];
-  const holdSeq = [5, 2, 3, 4];
-  const notes = [];
-  for (let bar = 0; bar < BARS_PER_PHRASE; bar++) {
-    const chord = PROGRESSION[bar];
-    beatOffsets.forEach((offset, i) => {
-      const midi = chord.triad[degreeSeq[i]] + 12;
-      notes.push({ step: bar * STEPS_PER_BAR + offset, midi, hold: holdSeq[i] });
-    });
-  }
-  return notes;
+// 8-bar modal loop, E minor, Tron-score style: mostly a drone with just
+// enough movement to feel like it's going somewhere.
+const CHORD_ROOTS = [40, 40, 48, 50, 40, 40, 48, 47]; // Em Em C D Em Em C B
+
+// Derezzed-style riff: semitone offsets from a bar's root, two 8-step cells
+// per bar (steps 0-7, 8-15). Octave jumps + a chromatic passing tone give it
+// the "bite". Root sits an octave above the pad/bass drone root.
+const RIFF_CELL_MAIN = [0, 0, 3, 0, 5, 3, 2, 0];    // E-E-G-E-A-G-F#-E
+const RIFF_CELL_WIDE = [0, 3, 0, 5, 7, 5, 3, 0];    // E-G-E-A-B-A-G-E
+const RIFF_CELL_OCT = [12, 0, 3, 7, 5, 3, 2, 0];    // octave-up stab then fall
+const RIFF_CELL_CHR = [0, 0, 3, 5, 3, 0, -2, 0];    // chromatic dip / bite
+const RIFF_CELL_PAIRS = [
+  [RIFF_CELL_MAIN, RIFF_CELL_MAIN], [RIFF_CELL_MAIN, RIFF_CELL_OCT],
+  [RIFF_CELL_WIDE, RIFF_CELL_WIDE], [RIFF_CELL_WIDE, RIFF_CELL_CHR],
+  [RIFF_CELL_MAIN, RIFF_CELL_MAIN], [RIFF_CELL_OCT, RIFF_CELL_MAIN],
+  [RIFF_CELL_WIDE, RIFF_CELL_CHR], [RIFF_CELL_CHR, RIFF_CELL_MAIN],
+];
+const RIFF_BARS = CHORD_ROOTS.map((root, i) => ({ root: root + 12, cells: RIFF_CELL_PAIRS[i] }));
+
+// Rez-style ascending E-minor-pentatonic sequence for playerShoot(). Walks up
+// this list on every shot, resets to index 0 at every new bar.
+const PENTATONIC_SEQUENCE = [64, 67, 69, 71, 74, 76, 79, 81, 83, 86, 88, 91, 93, 95, 98, 100];
+
+// Per-layer target gain by intensity level [0, 1, 2, 3].
+const LAYER_GAIN = {
+  pad: [0.55, 0.50, 0.45, 0.42],
+  pulse: [0.55, 0, 0, 0],
+  kick: [0, 0.90, 0.90, 0.90],
+  perc: [0, 0.65, 0.70, 0.75], // hats + snare/clap share this bus
+  riff: [0, 0, 0.85, 0.80],
+  stab: [0, 0, 0, 0.55],
+  fx: [0, 0, 0, 0.70],        // riser + crash
+};
+const INTENSITY_RAMP_SEC = 0.05; // "50ms gain ramps" applied at the bar boundary
+
+function makeDriveCurve(amount = 18) {
+  const n = 256, curve = new Float32Array(n), norm = Math.tanh(amount) || 1;
+  for (let i = 0; i < n; i++) { const x = (i * 2) / n - 1; curve[i] = Math.tanh(x * amount) / norm; }
+  return curve;
 }
-const LEAD_MELODY = buildLeadMelody();
-const LEAD_INDEX = Object.fromEntries(LEAD_MELODY.map((n) => [n.step, n]));
-
-// ---------------------------------------------------------------------------
-// Small DSP / scheduling helpers
-// ---------------------------------------------------------------------------
-
-const dbToGain = (db) => Math.pow(10, db / 20);
-const midiToFreq = (m) => 440 * Math.pow(2, (m - 69) / 12);
-
-/** Multi-point ramp helper. points = [[dtFromT0, value], ...]. */
-function env(param, t0, points, curve = 'lin') {
-  param.cancelScheduledValues(t0);
-  points.forEach(([dt, value], i) => {
-    const t = t0 + dt;
-    if (i === 0) {
-      param.setValueAtTime(curve === 'exp' ? Math.max(value, 0.0001) : value, t);
-    } else if (curve === 'exp') {
-      param.exponentialRampToValueAtTime(Math.max(value, 0.0001), t);
-    } else {
-      param.linearRampToValueAtTime(value, t);
-    }
-  });
+function makeCrushCurve(steps = 6) {
+  const n = 256, curve = new Float32Array(n);
+  for (let i = 0; i < n; i++) { const x = (i * 2) / n - 1; curve[i] = Math.round(x * steps) / steps; }
+  return curve;
 }
 
-/** Smoothly moves a gain param to a new target — avoids clicks on layer toggles. */
-function rampGain(param, t0, target, duration = 0.05) {
-  param.cancelScheduledValues(t0);
-  param.setValueAtTime(param.value, t0);
-  param.linearRampToValueAtTime(target, t0 + duration);
-}
-
-/** One reusable buffer of white noise, sliced by each noise burst via start/stop. */
-function makeNoiseBuffer(ctx, seconds = 2) {
-  const length = Math.max(1, Math.floor(ctx.sampleRate * seconds));
-  const buffer = ctx.createBuffer(1, length, ctx.sampleRate);
-  const data = buffer.getChannelData(0);
-  for (let i = 0; i < length; i++) data[i] = Math.random() * 2 - 1;
-  return buffer;
-}
-
-/** Filtered, enveloped burst of noise — used for hats, snare, risers, explosions. */
-function noiseBurst(ctx, dest, buffer, t, dur, opts = {}) {
-  const {
-    filterType = 'bandpass', freq = 1200, freqEnd = null, q = 1, peak = 0.5,
-  } = opts;
-  const src = ctx.createBufferSource();
-  src.buffer = buffer;
-  const filter = ctx.createBiquadFilter();
-  filter.type = filterType;
-  filter.Q.value = q;
-  filter.frequency.setValueAtTime(freq, t);
-  if (freqEnd !== null) filter.frequency.exponentialRampToValueAtTime(Math.max(freqEnd, 20), t + dur);
-  const gain = ctx.createGain();
-  src.connect(filter);
-  filter.connect(gain);
-  gain.connect(dest);
-  env(gain.gain, t, [[0, 0.0001], [Math.min(0.01, dur * 0.25), peak], [dur, 0.0001]]);
-  src.start(t);
-  src.stop(t + dur + 0.02);
-  return { src, filter, gain };
-}
-
-/** Short synth "pluck" voice — one oscillator through a filter with its own envelope. */
-function pluckVoice(ctx, dest, t, dur, opts = {}) {
-  const {
-    type = 'sawtooth', freq, detune = 0, filterType = 'lowpass',
-    filterFreq = 2200, filterFreqEnd = null, q = 1, peak = 0.35, attack = 0.006,
-  } = opts;
-  const osc = ctx.createOscillator();
-  osc.type = type;
-  osc.frequency.value = freq;
-  osc.detune.value = detune;
-  const filter = ctx.createBiquadFilter();
-  filter.type = filterType;
-  filter.Q.value = q;
-  filter.frequency.setValueAtTime(filterFreq, t);
-  if (filterFreqEnd !== null) filter.frequency.exponentialRampToValueAtTime(Math.max(filterFreqEnd, 20), t + dur);
-  const gain = ctx.createGain();
-  osc.connect(filter);
-  filter.connect(gain);
-  gain.connect(dest);
-  env(gain.gain, t, [[0, 0.0001], [attack, peak], [dur, 0.0001]]);
-  osc.start(t);
-  osc.stop(t + dur + 0.02);
-  return { osc, filter, gain };
-}
-
-function layerTargetsForIntensity(level) {
-  return {
-    kick: level >= 1 ? 1 : 0,
-    bass: level >= 1 ? 1 : 0,
-    snare: level >= 1 ? 1 : 0,
-    arp: level >= 2 ? 1 : 0,
-    lead: level >= 3 ? 1 : 0,
-    openHat: level >= 3 ? 1 : 0,
-  };
-}
-
-// ---------------------------------------------------------------------------
-// The engine
 // ---------------------------------------------------------------------------
 
 export class SynthwaveEngine {
   constructor() {
-    // No AudioContext here — browsers block autoplay until a user gesture,
-    // so the whole graph is built lazily the first time it's actually needed.
+    // NOTE: no AudioContext here — browsers require a user gesture, so it's
+    // lazily created in start().
     this.ctx = null;
-    this.bpm = BPM_DEFAULT;
-    this.intensity = 0;
-    this._pendingIntensity = null;
+    this.started = false;
+    this.bpm = BPM;
 
-    this._started = false;
-    this._schedulerId = null;
-    this._timeouts = [];
-    this._beatCbs = [];
-    this._barCbs = [];
+    this._schedulerTimer = null;
+    this._pendingTimeouts = new Set();
 
-    this.step = 0;
-    this.nextNoteTime = 0;
+    // Transport.
+    this._current16th = 0;
+    this._currentBar = 0;   // absolute bar count since start()
+    this._nextNoteTime = 0;
+    this._gridEpoch = 0;    // ctx time of step 0 of bar 0
+
+    // Intensity (0-3); pendingIntensity applies at the next bar boundary.
+    this._pendingIntensity = 0;
+    this._currentIntensity = 0;
+
+    this._beatCallbacks = [];
+    this._barCallbacks = [];
+
+    // Rez shot-melody state.
+    this._shootIndex = 0;
+    this._shootBar = -1;
+
+    // Stateful SFX voices.
+    this._boostOn = false;
     this._boostVoice = null;
+
+    // Static waveshaper curves — pure data, no ctx needed, build once.
+    this._driveCurve = makeDriveCurve(18);
+    this._crushCurve = makeCrushCurve(6);
   }
 
-  // -- public transport -------------------------------------------------
+  // ---- Lifecycle ------------------------------------------------------
 
   async start() {
-    if (this._started) return; // never double-schedule
-    if (!this.ctx) {
-      try {
-        this._buildGraph();
-      } catch (e) {
-        return; // audio unsupported / blocked — fail silently
-      }
+    if (this.started && this.ctx) {
+      // Repeat calls must not double-schedule; just make sure we're audible.
+      if (this.ctx.state === 'suspended') { try { await this.ctx.resume(); } catch (_) {} }
+      return;
     }
-    if (this.ctx.state === 'suspended') {
-      try {
-        await this.ctx.resume();
-      } catch (e) {
-        // still allowed to proceed; scheduler will just be silent until resumed
-      }
-    }
-    rampGain(this.musicBus.gain, this.ctx.currentTime, this._musicBaseGain, 0.25);
-    this.nextNoteTime = this.ctx.currentTime + 0.06;
-    this._started = true;
-    this._schedulerId = setInterval(() => this._tick(), LOOKAHEAD_MS);
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    this.ctx = new AudioCtx();
+    this.started = true;
+    if (this.ctx.state === 'suspended') { try { await this.ctx.resume(); } catch (_) {} }
+
+    this._buildGraph();
+    this._resetTransport();
+    this._schedulerTimer = setInterval(() => this._scheduler(), LOOKAHEAD_MS);
   }
 
   stop() {
-    if (!this._started) return;
-    this._started = false;
-    if (this._schedulerId) {
-      clearInterval(this._schedulerId);
-      this._schedulerId = null;
+    if (!this.started) return;
+    this.started = false;
+    if (this._schedulerTimer) { clearInterval(this._schedulerTimer); this._schedulerTimer = null; }
+    for (const id of this._pendingTimeouts) clearTimeout(id);
+    this._pendingTimeouts.clear();
+
+    const ctx = this.ctx;
+    if (ctx) {
+      try {
+        const t = ctx.currentTime;
+        this.masterGain.gain.cancelScheduledValues(t);
+        this.masterGain.gain.setValueAtTime(this.masterGain.gain.value, t);
+        this.masterGain.gain.linearRampToValueAtTime(0, t + 0.15);
+      } catch (_) {}
+      setTimeout(() => { try { ctx.close(); } catch (_) {} }, 250);
     }
-    this._timeouts.forEach(clearTimeout);
-    this._timeouts = [];
-    if (this.ctx && this.musicBus) {
-      rampGain(this.musicBus.gain, this.ctx.currentTime, 0.0001, 0.2);
-    }
+    this.ctx = null;
+    this._boostVoice = null;
+    this._boostOn = false;
   }
 
-  onBeat(cb) {
-    this._beatCbs.push(cb);
-    return () => { this._beatCbs = this._beatCbs.filter((f) => f !== cb); };
-  }
+  // ---- Beat / bar callbacks --------------------------------------------
 
-  onBar(cb) {
-    this._barCbs.push(cb);
-    return () => { this._barCbs = this._barCbs.filter((f) => f !== cb); };
-  }
+  onBeat(cb) { if (typeof cb === 'function') this._beatCallbacks.push(cb); }
+  onBar(cb) { if (typeof cb === 'function') this._barCallbacks.push(cb); }
 
   setIntensity(level) {
-    const lvl = Math.max(0, Math.min(3, Math.round(level)));
-    this._pendingIntensity = lvl; // applied at the next bar boundary by the scheduler
+    this._pendingIntensity = Math.max(0, Math.min(3, level | 0)); // applied at next bar
   }
 
-  // -- graph construction -------------------------------------------------
+  // ---- Audio graph ------------------------------------------------------
 
   _buildGraph() {
-    const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    const ctx = new AudioCtx();
-    this.ctx = ctx;
-    this.noiseBuffer = makeNoiseBuffer(ctx, 2);
-    this._musicBaseGain = dbToGain(-8);
+    const ctx = this.ctx;
+    this.compressor = ctx.createDynamicsCompressor();
+    Object.assign(this.compressor.threshold, { value: -14 });
+    this.compressor.knee.value = 12;
+    this.compressor.ratio.value = 4;
+    this.compressor.attack.value = 0.003;
+    this.compressor.release.value = 0.22;
 
-    // Master chain: buses -> compressor -> master gain -> destination.
-    const compressor = ctx.createDynamicsCompressor();
-    compressor.threshold.value = -18;
-    compressor.knee.value = 12;
-    compressor.ratio.value = 4;
-    compressor.attack.value = 0.003;
-    compressor.release.value = 0.15;
+    this.masterGain = this._gain(ctx, MASTER_GAIN, ctx.destination);
+    this.compressor.connect(this.masterGain);
 
-    const masterGain = ctx.createGain();
-    masterGain.gain.value = 1;
-    compressor.connect(masterGain);
-    masterGain.connect(ctx.destination);
+    this.musicBus = this._gain(ctx, MUSIC_BUS_GAIN, this.compressor);
+    this.sfxBus = this._gain(ctx, SFX_BUS_GAIN, this.compressor);
 
-    const musicBus = ctx.createGain();
-    musicBus.gain.value = 0.0001; // ramped up in start()
-    musicBus.connect(compressor);
+    // THE PUMP: pads + arp/riff + sustained bass live here and get ducked on
+    // every kick. Kick and lead SFX bypass this entirely.
+    this.pumpBus = this._gain(ctx, 1.0, this.musicBus);
 
-    const sfxBus = ctx.createGain();
-    sfxBus.gain.value = dbToGain(-4);
-    sfxBus.connect(compressor);
+    this.padGain = this._gain(ctx, 0, this.pumpBus);
+    this.riffGain = this._gain(ctx, 0, this.pumpBus);
+    this.pulseGain = this._gain(ctx, 0, this.pumpBus);
+    this.kickGain = this._gain(ctx, 0, this.musicBus);
+    this.percGain = this._gain(ctx, 0, this.musicBus);
+    this.stabGain = this._gain(ctx, 0, this.musicBus);
+    this.fxGain = this._gain(ctx, 0, this.musicBus);
 
-    // Shared feedback delay (dotted-eighth) for arp/lead sparkle.
-    const delayNode = ctx.createDelay(1.5);
-    delayNode.delayTime.value = (60 / this.bpm) * 0.75;
-    const feedback = ctx.createGain();
-    feedback.gain.value = 0.35;
-    const delayWet = ctx.createGain();
-    delayWet.gain.value = 1;
-    delayNode.connect(feedback);
-    feedback.connect(delayNode);
-    delayNode.connect(delayWet);
-    delayWet.connect(musicBus);
+    // Shared white-noise buffer for hats/snare/riser/crash/explosions.
+    const len = Math.floor(ctx.sampleRate * 2);
+    this._noiseBuf = ctx.createBuffer(1, len, ctx.sampleRate);
+    const data = this._noiseBuf.getChannelData(0);
+    for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
 
-    // Per-layer bus gains. Always-on layers (pad/sub/soft hat) sit at 1;
-    // intensity-gated layers start silent and are ramped by setIntensity().
-    const padGain = ctx.createGain(); padGain.gain.value = 1; padGain.connect(musicBus);
-    const subGain = ctx.createGain(); subGain.gain.value = 1; subGain.connect(musicBus);
-    const softHatGain = ctx.createGain(); softHatGain.gain.value = 1; softHatGain.connect(musicBus);
-    const kickGain = ctx.createGain(); kickGain.gain.value = 0; kickGain.connect(musicBus);
-    const bassGain = ctx.createGain(); bassGain.gain.value = 0; bassGain.connect(musicBus);
-    const snareGain = ctx.createGain(); snareGain.gain.value = 0; snareGain.connect(musicBus);
-    const arpGain = ctx.createGain(); arpGain.gain.value = 0;
-    arpGain.connect(musicBus); arpGain.connect(delayNode);
-    const leadGain = ctx.createGain(); leadGain.gain.value = 0;
-    leadGain.connect(musicBus); leadGain.connect(delayNode);
-    const openHatGain = ctx.createGain(); openHatGain.gain.value = 0; openHatGain.connect(musicBus);
-
-    Object.assign(this, {
-      compressor, masterGain, musicBus, sfxBus, delayNode, feedback, delayWet,
-      padGain, subGain, softHatGain, kickGain, bassGain, snareGain, arpGain, leadGain, openHatGain,
-    });
-
-    // Persistent mono lead voice (two detuned saws) — kept alive across notes
-    // so it can genuinely glide (portamento) instead of hard-retriggering.
-    const l1 = ctx.createOscillator(); l1.type = 'sawtooth'; l1.detune.value = -7;
-    const l2 = ctx.createOscillator(); l2.type = 'sawtooth'; l2.detune.value = 7;
-    const leadFilter = ctx.createBiquadFilter();
-    leadFilter.type = 'lowpass'; leadFilter.frequency.value = 2600; leadFilter.Q.value = 0.6;
-    const leadAmp = ctx.createGain(); leadAmp.gain.value = 0.0001;
-    l1.connect(leadFilter); l2.connect(leadFilter); leadFilter.connect(leadAmp); leadAmp.connect(leadGain);
-    l1.frequency.value = 220; l2.frequency.value = 220;
-    l1.start(); l2.start();
-    this._lead = { o1: l1, o2: l2, filter: leadFilter, amp: leadAmp, lastFreq: 220 };
-
-    this._boostVoice = null;
+    this._buildPad();
   }
 
-  /** Lazily builds the graph so SFX work even if start() was never called. */
-  _ensure() {
-    if (!this.ctx) {
-      try {
-        this._buildGraph();
-      } catch (e) {
-        return null;
+  _gain(ctx, value, dest) {
+    const g = ctx.createGain();
+    g.gain.value = value;
+    if (dest) g.connect(dest);
+    return g;
+  }
+
+  _buildPad() {
+    const ctx = this.ctx;
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 700;
+    filter.Q.value = 0.6;
+    filter.connect(this.padGain);
+
+    const rootFreq = noteFreq(CHORD_ROOTS[0]);
+    this.padOscs = [-11, 0, 11].map((detune) => {
+      const o = ctx.createOscillator();
+      o.type = 'sawtooth'; o.frequency.value = rootFreq; o.detune.value = detune;
+      o.connect(filter); o.start();
+      return o;
+    });
+
+    this.padSub = ctx.createOscillator();
+    this.padSub.type = 'sine';
+    this.padSub.frequency.value = noteFreq(CHORD_ROOTS[0] - 12);
+    this.padSub.connect(filter); this.padSub.start();
+
+    // Slow LFO breathing the filter cutoff — ominous, "Grid-idle" drift.
+    this.padLfo = ctx.createOscillator();
+    this.padLfo.type = 'sine';
+    this.padLfo.frequency.value = 0.07;
+    const lfoDepth = this._gain(ctx, 220, filter.frequency);
+    this.padLfo.connect(lfoDepth);
+    this.padLfo.start();
+  }
+
+  _updatePadChord(rootMidi, time) {
+    for (const o of this.padOscs) o.frequency.setTargetAtTime(noteFreq(rootMidi), time, 0.15);
+    this.padSub.frequency.setTargetAtTime(noteFreq(rootMidi - 12), time, 0.15);
+  }
+
+  // ---- Transport / lookahead scheduler ("A Tale of Two Clocks") ---------
+
+  _resetTransport() {
+    this._current16th = 0;
+    this._currentBar = 0;
+    this._gridEpoch = this.ctx.currentTime + 0.05;
+    this._nextNoteTime = this._gridEpoch;
+    this._currentIntensity = this._pendingIntensity;
+  }
+
+  _scheduler() {
+    if (!this.ctx) return;
+    while (this._nextNoteTime < this.ctx.currentTime + SCHEDULE_AHEAD_SEC) {
+      this._scheduleStep(this._current16th, this._currentBar, this._nextNoteTime);
+      this._nextNoteTime += SECONDS_PER_16TH;
+      if (++this._current16th >= STEPS_PER_BAR) { this._current16th = 0; this._currentBar++; }
+    }
+  }
+
+  _scheduleTimeout(fn, time) {
+    const delayMs = Math.max(0, (time - this.ctx.currentTime) * 1000);
+    const id = setTimeout(() => { this._pendingTimeouts.delete(id); fn(); }, delayMs);
+    this._pendingTimeouts.add(id);
+  }
+
+  _fireBeat(beat, bar, time) {
+    if (!this._beatCallbacks.length) return;
+    this._scheduleTimeout(() => {
+      const payload = { beat, bar, sixteenth: beat * 4 };
+      for (const cb of this._beatCallbacks) { try { cb(payload); } catch (e) { console.error(e); } }
+    }, time);
+  }
+
+  _fireBar(bar, time) {
+    if (!this._barCallbacks.length) return;
+    this._scheduleTimeout(() => {
+      for (const cb of this._barCallbacks) { try { cb({ bar }); } catch (e) { console.error(e); } }
+    }, time);
+  }
+
+  // Every step of the 16th-note grid gets a chance to trigger a layer.
+  _scheduleStep(step, bar, time) {
+    const phraseBar = bar % BARS_PER_PHRASE;
+
+    if (step === 0) {
+      this._currentIntensity = this._pendingIntensity;
+      this._applyIntensityGains(time);
+      this._updatePadChord(CHORD_ROOTS[phraseBar], time);
+      this._fireBar(bar, time);
+      if (this._currentIntensity >= 3 && phraseBar === 0 && bar > 0) {
+        this._triggerCrash(time); // resolves the riser from the previous bar
       }
     }
-    if (this.ctx.state === 'suspended') {
-      this.ctx.resume().catch(() => {});
-    }
-    return this.ctx;
+    if (step % 4 === 0) this._fireBeat(step / 4, bar, time);
+
+    const lvl = this._currentIntensity;
+
+    // Level 0: ominous drone + sparse deep pulse (half notes).
+    if (lvl === 0 && (step === 0 || step === 8)) this._triggerPulse(CHORD_ROOTS[phraseBar] - 12, time);
+
+    // Level 1+: four-on-the-floor kick (drives the pump), offbeat open hat,
+    // snare/clap on 2 & 4.
+    if (lvl >= 1 && step % 4 === 0) this._triggerKick(time);
+    if (lvl >= 1 && (step === 4 || step === 12)) this._triggerSnare(time);
+    if (lvl >= 1 && (step === 2 || step === 6 || step === 10 || step === 14)) this._triggerHat(time, true);
+
+    // Level 2+: the Derezzed riff.
+    if (lvl >= 2) this._triggerRiffStep(phraseBar, step, time);
+
+    // Level 3+: 16th closed hats, accent stabs, riser into the phrase turn.
+    if (lvl >= 3) this._triggerHat(time, false);
+    if (lvl >= 3 && (step === 0 || step === 14)) this._triggerStab(CHORD_ROOTS[phraseBar], time);
+    if (lvl >= 3 && phraseBar === BARS_PER_PHRASE - 1 && step === 0) this._triggerRiser(time, SECONDS_PER_BEAT * 4);
   }
 
-  _safe(fn) {
-    try { fn(); } catch (e) { /* SFX must never throw */ }
+  _applyIntensityGains(time) {
+    const lvl = this._currentIntensity;
+    this._rampGain(this.padGain, LAYER_GAIN.pad[lvl], time);
+    this._rampGain(this.pulseGain, LAYER_GAIN.pulse[lvl], time);
+    this._rampGain(this.kickGain, LAYER_GAIN.kick[lvl], time);
+    this._rampGain(this.percGain, LAYER_GAIN.perc[lvl], time);
+    this._rampGain(this.riffGain, LAYER_GAIN.riff[lvl], time);
+    this._rampGain(this.stabGain, LAYER_GAIN.stab[lvl], time);
+    this._rampGain(this.fxGain, LAYER_GAIN.fx[lvl], time);
   }
 
-  // -- scheduler ("A Tale of Two Clocks") ---------------------------------
-
-  _secondsPer16th() { return 60 / this.bpm / STEPS_PER_BEAT; }
-
-  _tick() {
-    if (!this._started || !this.ctx) return;
-    while (this.nextNoteTime < this.ctx.currentTime + SCHEDULE_AHEAD_S) {
-      this._scheduleStep(this.step, this.nextNoteTime);
-      this.nextNoteTime += this._secondsPer16th();
-      this.step = (this.step + 1) % TOTAL_STEPS;
-    }
+  _rampGain(node, target, time, ramp = INTENSITY_RAMP_SEC) {
+    node.gain.cancelScheduledValues(time);
+    node.gain.setValueAtTime(node.gain.value, time);
+    node.gain.linearRampToValueAtTime(target, time + ramp);
   }
 
-  /** Fires a callback via setTimeout timed to match the audible moment. */
-  _fireAt(time, fn) {
-    const delay = Math.max(0, (time - this.ctx.currentTime) * 1000);
-    this._timeouts.push(setTimeout(fn, delay));
-  }
+  // ---- THE PUMP — Daft Punk sidechain duck, fired on every kick ---------
 
-  _scheduleStep(step, time) {
-    const barIndex = Math.floor(step / STEPS_PER_BAR) % BARS_PER_PHRASE;
-    const stepInBar = step % STEPS_PER_BAR;
-    const beatInBar = Math.floor(stepInBar / STEPS_PER_BEAT);
-    const sixteenthInBeat = stepInBar % STEPS_PER_BEAT;
-    const isBeat = sixteenthInBeat === 0;
-    const isBarStart = stepInBar === 0;
-    const chord = PROGRESSION[barIndex];
-    const secondsPer16th = this._secondsPer16th();
-
-    if (isBarStart) {
-      this._applyPendingIntensity(time);
-      this._triggerPad(chord, time, secondsPer16th);
-      this._triggerSubBass(chord, time, secondsPer16th);
-      this._maybeTriggerRiser(barIndex, time, secondsPer16th);
-    }
-
-    // Level 0+: sparse soft hats on the off-8ths.
-    if (stepInBar % 4 === 2) this._scheduleSoftHat(time);
-
-    // Level 1+: four-on-the-floor kick, snare/clap on 2 & 4, outrun octave bass.
-    if (isBeat) {
-      this._scheduleKick(time);
-      if (beatInBar === 1 || beatInBar === 3) this._scheduleSnare(time);
-    }
-    if (stepInBar % 2 === 0) {
-      const octaveUp = ((stepInBar / 2) % 2) === 1;
-      this._scheduleOffbeatBass(chord, time, octaveUp);
-    }
-
-    // Level 2+: 16th-note arpeggio.
-    const arpDegree = ARP_PATTERN[stepInBar];
-    if (arpDegree !== null && arpDegree !== undefined) {
-      this._scheduleArpNote(chord, arpDegree, time);
-    }
-
-    // Level 3+: lead melody + open hat accents.
-    const leadNote = LEAD_INDEX[step];
-    if (leadNote) this._triggerLead(leadNote.midi, time, leadNote.hold * secondsPer16th);
-    if (stepInBar % 8 === 6) this._scheduleOpenHat(time);
-
-    // Visual sync callbacks, timed to the audible moment.
-    if (isBeat) {
-      const beatNumber = beatInBar + 1;
-      this._fireAt(time, () => this._emitBeat({ beat: beatNumber, bar: barIndex + 1, sixteenth: sixteenthInBeat }));
-    }
-    if (isBarStart) {
-      this._fireAt(time, () => this._emitBar({ bar: barIndex + 1 }));
-    }
-  }
-
-  _emitBeat(info) { this._beatCbs.forEach((cb) => { try { cb(info); } catch (e) {} }); }
-  _emitBar(info) { this._barCbs.forEach((cb) => { try { cb(info); } catch (e) {} }); }
-
-  _applyPendingIntensity(time) {
-    if (this._pendingIntensity === null || this._pendingIntensity === this.intensity) return;
-    this.intensity = this._pendingIntensity;
-    this._pendingIntensity = null;
-    const t = layerTargetsForIntensity(this.intensity);
-    rampGain(this.kickGain.gain, time, t.kick);
-    rampGain(this.bassGain.gain, time, t.bass);
-    rampGain(this.snareGain.gain, time, t.snare);
-    rampGain(this.arpGain.gain, time, t.arp);
-    rampGain(this.leadGain.gain, time, t.lead);
-    rampGain(this.openHatGain.gain, time, t.openHat);
-  }
-
-  // -- music layers ---------------------------------------------------
-
-  _triggerPad(chord, time, secondsPer16th) {
-    const ctx = this.ctx;
-    const barDur = STEPS_PER_BAR * secondsPer16th;
-    // Two detuned saws voicing the 3rd + 5th (the sub-bass layer covers the root).
-    const o1 = ctx.createOscillator(); o1.type = 'sawtooth'; o1.detune.value = -6;
-    const o2 = ctx.createOscillator(); o2.type = 'sawtooth'; o2.detune.value = 6;
-    o1.frequency.value = midiToFreq(chord.triad[1]);
-    o2.frequency.value = midiToFreq(chord.triad[2]);
-
-    const filter = ctx.createBiquadFilter();
-    filter.type = 'lowpass'; filter.Q.value = 0.5;
-    filter.frequency.setValueAtTime(700, time);
-
-    // Slow LFO sweeping the cutoff for movement across the bar.
-    const lfo = ctx.createOscillator(); lfo.type = 'sine'; lfo.frequency.value = 0.11;
-    const lfoDepth = ctx.createGain(); lfoDepth.gain.value = 320;
-    lfo.connect(lfoDepth); lfoDepth.connect(filter.frequency);
-
-    const gain = ctx.createGain();
-    o1.connect(filter); o2.connect(filter); filter.connect(gain); gain.connect(this.padGain);
-    env(gain.gain, time, [[0, 0.0001], [0.5, 0.32], [barDur - 0.35, 0.28], [barDur, 0.0001]]);
-
-    o1.start(time); o2.start(time); lfo.start(time);
-    const stopAt = time + barDur + 0.05;
-    o1.stop(stopAt); o2.stop(stopAt); lfo.stop(stopAt);
-  }
-
-  _triggerSubBass(chord, time, secondsPer16th) {
-    const barDur = STEPS_PER_BAR * secondsPer16th;
-    pluckVoice(this.ctx, this.subGain, time, barDur * 0.9, {
-      type: 'sine', freq: midiToFreq(chord.root), filterType: 'lowpass',
-      filterFreq: 400, q: 0.5, peak: 0.55, attack: 0.05,
-    });
-  }
-
-  _maybeTriggerRiser(barIndex, time, secondsPer16th) {
-    if (this.intensity < 3 || barIndex !== BARS_PER_PHRASE - 1) return;
-    const dur = STEPS_PER_BAR * secondsPer16th;
-    noiseBurst(this.ctx, this.musicBus, this.noiseBuffer, time, dur, {
-      filterType: 'bandpass', freq: 300, freqEnd: 5000, q: 0.8, peak: 0.4,
-    });
-  }
-
-  _scheduleKick(time) {
-    const ctx = this.ctx;
-    const dur = 0.28;
-    const osc = ctx.createOscillator(); osc.type = 'sine';
-    const gain = ctx.createGain();
-    osc.connect(gain); gain.connect(this.kickGain);
-    osc.frequency.setValueAtTime(150, time);
-    osc.frequency.exponentialRampToValueAtTime(48, time + 0.12);
-    env(gain.gain, time, [[0, 0.0001], [0.006, 0.9], [dur, 0.0001]]);
-    osc.start(time); osc.stop(time + dur + 0.02);
-  }
-
-  _scheduleSnare(time) {
-    noiseBurst(this.ctx, this.snareGain, this.noiseBuffer, time, 0.16, {
-      filterType: 'bandpass', freq: 1800, q: 1.2, peak: 0.55,
-    });
-  }
-
-  _scheduleOffbeatBass(chord, time, octaveUp) {
-    const midi = chord.root + 12 + (octaveUp ? 12 : 0);
-    pluckVoice(this.ctx, this.bassGain, time, 0.2, {
-      type: 'sawtooth', freq: midiToFreq(midi), filterType: 'lowpass',
-      filterFreq: 2200, filterFreqEnd: 350, q: 0.8, peak: 0.32, attack: 0.004,
-    });
-  }
-
-  _scheduleSoftHat(time) {
-    noiseBurst(this.ctx, this.softHatGain, this.noiseBuffer, time, 0.045, {
-      filterType: 'highpass', freq: 6000, q: 0.7, peak: 0.16,
-    });
-  }
-
-  _scheduleOpenHat(time) {
-    noiseBurst(this.ctx, this.openHatGain, this.noiseBuffer, time, 0.22, {
-      filterType: 'highpass', freq: 5000, q: 0.6, peak: 0.2,
-    });
-  }
-
-  _scheduleArpNote(chord, degree, time) {
-    const ext = [chord.triad[0], chord.triad[1], chord.triad[2], chord.triad[0] + 12];
-    const midi = ext[degree % ext.length] + 12;
-    const type = degree % 2 === 0 ? 'square' : 'sawtooth';
-    pluckVoice(this.ctx, this.arpGain, time, 0.11, {
-      type, freq: midiToFreq(midi), filterType: 'lowpass',
-      filterFreq: 3800, filterFreqEnd: 1000, q: 1, peak: 0.22, attack: 0.003,
-    });
-  }
-
-  _triggerLead(midi, time, dur) {
-    const lead = this._lead;
-    const freq = midiToFreq(midi);
-    const glide = Math.min(0.09, dur * 0.3);
-    lead.o1.frequency.cancelScheduledValues(time);
-    lead.o2.frequency.cancelScheduledValues(time);
-    lead.o1.frequency.setValueAtTime(lead.lastFreq, time);
-    lead.o2.frequency.setValueAtTime(lead.lastFreq, time);
-    lead.o1.frequency.linearRampToValueAtTime(freq, time + glide);
-    lead.o2.frequency.linearRampToValueAtTime(freq, time + glide);
-    lead.lastFreq = freq;
-    env(lead.amp.gain, time, [[0, 0.0001], [0.02, 0.26], [Math.max(dur - 0.06, 0.03), 0.18], [dur, 0.0001]]);
-  }
-
-  // -- ducking (explosions punch through the music) -----------------------
-
-  _duckMusic(time, big) {
-    if (!this.musicBus) return;
-    const base = this._musicBaseGain;
-    const g = this.musicBus.gain;
+  _duckPump(time) {
+    const g = this.pumpBus.gain;
     g.cancelScheduledValues(time);
-    g.setValueAtTime(g.value, time);
-    g.linearRampToValueAtTime(base * 0.35, time + 0.03);
-    g.linearRampToValueAtTime(base, time + 0.03 + (big ? 0.45 : 0.4));
+    g.setValueAtTime(1.0, time);
+    g.linearRampToValueAtTime(0.35, time + 0.01);
+    g.exponentialRampToValueAtTime(1.0, time + 0.27);
   }
 
-  // -- one-shot SFX ---------------------------------------------------
+  // ---- One-shot synthesis helpers ---------------------------------------
+
+  _noiseSrc() {
+    const s = this.ctx.createBufferSource();
+    s.buffer = this._noiseBuf;
+    return s;
+  }
+
+  // Standard fast-attack / exponential-decay envelope on a GainNode's param.
+  _pluck(param, peak, attack, decay, time) {
+    param.cancelScheduledValues(time);
+    param.setValueAtTime(0.0001, time);
+    param.linearRampToValueAtTime(peak, time + attack);
+    param.exponentialRampToValueAtTime(0.0001, time + attack + decay);
+  }
+
+  // ---- Music layers -------------------------------------------------
+
+  _triggerKick(time) {
+    const ctx = this.ctx;
+    const o = ctx.createOscillator();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(150, time);
+    o.frequency.exponentialRampToValueAtTime(45, time + 0.15);
+    const g = ctx.createGain();
+    this._pluck(g.gain, 1.0, 0.005, 0.275, time);
+    o.connect(g); g.connect(this.kickGain);
+    o.start(time); o.stop(time + 0.3);
+
+    const click = this._noiseSrc();
+    const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 2500;
+    const cg = ctx.createGain();
+    this._pluck(cg.gain, 0.35, 0.001, 0.019, time);
+    click.connect(hp); hp.connect(cg); cg.connect(this.kickGain);
+    click.start(time); click.stop(time + 0.03);
+
+    this._duckPump(time);
+  }
+
+  _triggerPulse(midi, time) {
+    const ctx = this.ctx;
+    const o = ctx.createOscillator();
+    o.type = 'sine'; o.frequency.value = noteFreq(midi);
+    const g = ctx.createGain();
+    this._pluck(g.gain, 0.8, 0.02, 0.88, time);
+    o.connect(g); g.connect(this.pulseGain);
+    o.start(time); o.stop(time + 0.95);
+  }
+
+  _triggerSnare(time) {
+    const ctx = this.ctx;
+    const src = this._noiseSrc();
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1800; bp.Q.value = 1.1;
+    const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 900;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.7, time);
+    g.gain.exponentialRampToValueAtTime(0.001, time + 0.13);
+    src.connect(bp); bp.connect(hp); hp.connect(g); g.connect(this.percGain);
+    src.start(time); src.stop(time + 0.15);
+  }
+
+  _triggerHat(time, open) {
+    const ctx = this.ctx;
+    const src = this._noiseSrc();
+    const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 7500;
+    const g = ctx.createGain();
+    const dur = open ? 0.16 : 0.045;
+    g.gain.setValueAtTime(open ? 0.32 : 0.24, time);
+    g.gain.exponentialRampToValueAtTime(0.001, time + dur);
+    src.connect(hp); hp.connect(g); g.connect(this.percGain);
+    src.start(time); src.stop(time + dur + 0.02);
+  }
+
+  _triggerRiffStep(phraseBar, step, time) {
+    const barDef = RIFF_BARS[phraseBar];
+    const cell = step < 8 ? barDef.cells[0] : barDef.cells[1];
+    this._triggerRiffNote(barDef.root + cell[step % 8], time, SECONDS_PER_16TH * 0.9);
+  }
+
+  // Aggressive detuned saw through a WaveShaper (mild tanh drive) and a
+  // resonant lowpass with its own envelope per note — the Derezzed hook.
+  _triggerRiffNote(midi, time, dur) {
+    const ctx = this.ctx;
+    const freq = noteFreq(midi);
+    const o1 = ctx.createOscillator(); o1.type = 'sawtooth'; o1.frequency.value = freq; o1.detune.value = -8;
+    const o2 = ctx.createOscillator(); o2.type = 'sawtooth'; o2.frequency.value = freq; o2.detune.value = 8;
+    const shaper = ctx.createWaveShaper(); shaper.curve = this._driveCurve; shaper.oversample = '2x';
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass'; filter.Q.value = 9;
+    filter.frequency.setValueAtTime(2000, time);
+    filter.frequency.exponentialRampToValueAtTime(450, time + dur * 0.9);
+    const g = ctx.createGain();
+    this._pluck(g.gain, 0.85, 0.006, dur - 0.006, time);
+    o1.connect(shaper); o2.connect(shaper); shaper.connect(filter); filter.connect(g); g.connect(this.riffGain);
+    o1.start(time); o2.start(time);
+    o1.stop(time + dur + 0.02); o2.stop(time + dur + 0.02);
+  }
+
+  _triggerStab(rootMidi, time) {
+    const ctx = this.ctx;
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1600; bp.Q.value = 2;
+    const g = ctx.createGain();
+    this._pluck(g.gain, 0.32, 0.005, 0.175, time);
+    bp.connect(g); g.connect(this.stabGain);
+    for (const n of [rootMidi + 12, rootMidi + 19, rootMidi + 24]) {
+      const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = noteFreq(n);
+      o.connect(bp); o.start(time); o.stop(time + 0.2);
+    }
+  }
+
+  _triggerRiser(time, dur) {
+    const ctx = this.ctx;
+    const src = this._noiseSrc();
+    const filter = ctx.createBiquadFilter(); filter.type = 'bandpass'; filter.Q.value = 0.8;
+    filter.frequency.setValueAtTime(200, time);
+    filter.frequency.exponentialRampToValueAtTime(9000, time + dur);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, time);
+    g.gain.exponentialRampToValueAtTime(0.5, time + dur);
+    src.connect(filter); filter.connect(g); g.connect(this.fxGain);
+    src.start(time); src.stop(time + dur + 0.02);
+  }
+
+  _triggerCrash(time) {
+    const ctx = this.ctx;
+    const src = this._noiseSrc();
+    const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 4000;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.5, time);
+    g.gain.exponentialRampToValueAtTime(0.001, time + 1.2);
+    src.connect(hp); hp.connect(g); g.connect(this.fxGain);
+    src.start(time); src.stop(time + 1.3);
+  }
+
+  // ---- Rez-style beat-grid quantization for player/enemy actions --------
+
+  // Returns the AudioContext time of the next 16th-note boundary (plus
+  // `offsetSteps - 1` extra 16ths). Max wait at 118bpm is one 16th note,
+  // ~127ms — that deliberate wait is the Rez feel.
+  quantize(offsetSteps = 1) {
+    if (!this.ctx) return 0;
+    return this._nextGridTime(1, offsetSteps - 1);
+  }
+
+  // multipleSteps: 1 = 16th grid, 2 = 8th grid, 4 = beat grid.
+  _nextGridTime(multipleSteps, extraSteps = 0) {
+    const stepsSinceEpoch = (this.ctx.currentTime - this._gridEpoch) / SECONDS_PER_16TH;
+    const n = Math.floor(stepsSinceEpoch / multipleSteps) * multipleSteps + multipleSteps;
+    return this._gridEpoch + (n + extraSteps) * SECONDS_PER_16TH;
+  }
+
+  _stepIndexAt(time) { return Math.round((time - this._gridEpoch) / SECONDS_PER_16TH); }
+
+  // ---- Player / enemy SFX — all no-op gracefully before start() ---------
 
   playerShoot() {
-    this._safe(() => {
-      const ctx = this._ensure(); if (!ctx) return;
-      const t = ctx.currentTime;
-      const variance = 1 + (Math.random() * 0.16 - 0.08);
-      const filter = ctx.createBiquadFilter(); filter.type = 'highpass'; filter.frequency.value = 400;
-      const gain = ctx.createGain();
-      const osc = ctx.createOscillator(); osc.type = 'sawtooth';
-      osc.connect(filter); filter.connect(gain); gain.connect(this.sfxBus);
-      osc.frequency.setValueAtTime(1600 * variance, t);
-      osc.frequency.exponentialRampToValueAtTime(320 * variance, t + 0.11);
-      env(gain.gain, t, [[0, 0.0001], [0.005, 0.5], [0.13, 0.0001]]);
-      osc.start(t); osc.stop(t + 0.15);
-    });
+    if (!this.ctx) return;
+    const time = this.quantize(1);
+    const bar = Math.floor(this._stepIndexAt(time) / STEPS_PER_BAR);
+    if (bar !== this._shootBar) { this._shootBar = bar; this._shootIndex = 0; }
+    const midi = PENTATONIC_SEQUENCE[this._shootIndex % PENTATONIC_SEQUENCE.length];
+    this._triggerPluck(midi, time, this._shootIndex++);
   }
 
+  // Bright pluck: square+saw, fast decay, ping-pong-ish feedback delay at
+  // 3/16. Pitch walks up PENTATONIC_SEQUENCE — rapid fire = an ascending
+  // melody line locked to the grid.
+  _triggerPluck(midi, time, shotNumber) {
+    const ctx = this.ctx;
+    const freq = noteFreq(midi);
+    const o1 = ctx.createOscillator(); o1.type = 'square'; o1.frequency.value = freq;
+    const o2 = ctx.createOscillator(); o2.type = 'sawtooth'; o2.frequency.value = freq; o2.detune.value = 7;
+    const filter = ctx.createBiquadFilter(); filter.type = 'lowpass'; filter.frequency.value = 6000; filter.Q.value = 0.8;
+    const g = ctx.createGain();
+    this._pluck(g.gain, 0.55, 0.004, 0.216, time);
+
+    const pan = ctx.createStereoPanner();
+    pan.pan.value = shotNumber % 2 === 0 ? -0.4 : 0.4;
+    o1.connect(filter); o2.connect(filter); filter.connect(g); g.connect(pan); pan.connect(this.sfxBus);
+
+    const delay = ctx.createDelay(1.0);
+    delay.delayTime.value = SECONDS_PER_16TH * 3;
+    const fb = this._gain(ctx, 0.32, delay);
+    const wet = this._gain(ctx, 0.28, pan);
+    g.connect(delay); delay.connect(fb); delay.connect(wet);
+
+    o1.start(time); o2.start(time);
+    o1.stop(time + 0.3); o2.stop(time + 0.3);
+  }
+
+  // Low FM-ish zap — meaner than the player's pluck.
   enemyShoot() {
-    this._safe(() => {
-      const ctx = this._ensure(); if (!ctx) return;
-      const t = ctx.currentTime;
-      const variance = 1 + (Math.random() * 0.1 - 0.05);
-      const filter = ctx.createBiquadFilter(); filter.type = 'lowpass'; filter.frequency.value = 1200;
-      const gain = ctx.createGain();
-      const osc = ctx.createOscillator(); osc.type = 'square';
-      const osc2 = ctx.createOscillator(); osc2.type = 'square'; osc2.detune.value = -18;
-      osc.connect(filter); osc2.connect(filter); filter.connect(gain); gain.connect(this.sfxBus);
-      osc.frequency.setValueAtTime(620 * variance, t);
-      osc.frequency.exponentialRampToValueAtTime(140 * variance, t + 0.18);
-      osc2.frequency.setValueAtTime(614 * variance, t);
-      osc2.frequency.exponentialRampToValueAtTime(139 * variance, t + 0.18);
-      env(gain.gain, t, [[0, 0.0001], [0.008, 0.45], [0.22, 0.0001]]);
-      osc.start(t); osc.stop(t + 0.24);
-      osc2.start(t); osc2.stop(t + 0.24);
-    });
+    if (!this.ctx) return;
+    const time = this.quantize(1);
+    const ctx = this.ctx;
+    const carrier = ctx.createOscillator(); carrier.type = 'sawtooth'; carrier.frequency.value = 180;
+    const mod = ctx.createOscillator(); mod.type = 'square'; mod.frequency.value = 55;
+    const modGain = this._gain(ctx, 120, carrier.frequency);
+    mod.connect(modGain);
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(1400, time);
+    filter.frequency.exponentialRampToValueAtTime(150, time + 0.18);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.5, time);
+    g.gain.exponentialRampToValueAtTime(0.001, time + 0.2);
+    carrier.connect(filter); filter.connect(g); g.connect(this.sfxBus);
+    carrier.start(time); mod.start(time);
+    carrier.stop(time + 0.22); mod.stop(time + 0.22);
+  }
+
+  // Two-note rising confirm, high register, lightly bit-crushed.
+  lockOn() {
+    if (!this.ctx) return;
+    const t1 = this.quantize(1);
+    this._triggerBlip(83, t1);                    // B5
+    this._triggerBlip(88, t1 + SECONDS_PER_16TH);  // E6
+  }
+
+  _triggerBlip(midi, time) {
+    const ctx = this.ctx;
+    const o = ctx.createOscillator(); o.type = 'square'; o.frequency.value = noteFreq(midi);
+    const shaper = ctx.createWaveShaper(); shaper.curve = this._crushCurve;
+    const g = ctx.createGain();
+    this._pluck(g.gain, 0.4, 0.003, 0.157, time);
+    o.connect(shaper); shaper.connect(g); g.connect(this.sfxBus);
+    o.start(time); o.stop(time + 0.18);
   }
 
   explosion(big = false) {
-    this._safe(() => {
-      const ctx = this._ensure(); if (!ctx) return;
-      const t = ctx.currentTime;
-      const dur = big ? 1.4 : 0.6;
-      noiseBurst(ctx, this.sfxBus, this.noiseBuffer, t, dur, {
-        filterType: 'lowpass', freq: big ? 2200 : 3200, freqEnd: big ? 80 : 150, peak: big ? 0.9 : 0.7,
-      });
-      if (big) {
-        const sub = ctx.createOscillator(); sub.type = 'sine';
-        const subGain = ctx.createGain();
-        sub.connect(subGain); subGain.connect(this.sfxBus);
-        sub.frequency.setValueAtTime(120, t);
-        sub.frequency.exponentialRampToValueAtTime(35, t + 0.5);
-        env(subGain.gain, t, [[0, 0.0001], [0.01, 0.9], [0.55, 0.0001]]);
-        sub.start(t); sub.stop(t + 0.6);
-      }
-      this._duckMusic(t, big);
-    });
+    if (!this.ctx) return;
+    const time = this._nextGridTime(2, 0); // next 8th note
+    this._triggerSubBoom(time, big);
+    this._triggerNoiseCrash(time, big);
+    if (big) {
+      this._triggerPowerChordStab(time);
+      this._duckPump(time); // manual duck — big hits punch through the mix
+    }
   }
 
+  _triggerSubBoom(time, big) {
+    const ctx = this.ctx;
+    const o = ctx.createOscillator();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(big ? 90 : 70, time);
+    o.frequency.exponentialRampToValueAtTime(40, time + 0.35);
+    const g = ctx.createGain();
+    this._pluck(g.gain, big ? 0.9 : 0.6, 0.01, (big ? 0.7 : 0.4) - 0.01, time);
+    o.connect(g); g.connect(this.sfxBus);
+    o.start(time); o.stop(time + (big ? 0.75 : 0.45));
+  }
+
+  _triggerNoiseCrash(time, big) {
+    const ctx = this.ctx;
+    const src = this._noiseSrc();
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = big ? 1200 : 2200; bp.Q.value = 0.6;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(big ? 0.65 : 0.42, time);
+    g.gain.exponentialRampToValueAtTime(0.001, time + (big ? 0.6 : 0.3));
+    src.connect(bp); bp.connect(g); g.connect(this.sfxBus);
+    src.start(time); src.stop(time + (big ? 0.65 : 0.35));
+  }
+
+  // One-beat Em power chord, manually ducking the pump — the "big" explosion punch.
+  _triggerPowerChordStab(time) {
+    const ctx = this.ctx;
+    const dur = SECONDS_PER_BEAT;
+    const shaper = ctx.createWaveShaper(); shaper.curve = this._driveCurve;
+    const g = ctx.createGain();
+    this._pluck(g.gain, 0.5, 0.01, dur - 0.01, time);
+    shaper.connect(g); g.connect(this.sfxBus);
+    for (const n of [40, 47, 52]) { // E2 B2 E3
+      const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = noteFreq(n);
+      o.connect(shaper); o.start(time); o.stop(time + dur + 0.05);
+    }
+  }
+
+  // Immediate — danger can't wait for the grid: dissonant minor-second stab + noise burst.
   playerHit() {
-    this._safe(() => {
-      const ctx = this._ensure(); if (!ctx) return;
-      const t = ctx.currentTime;
-      const gain = ctx.createGain(); gain.connect(this.sfxBus);
-      [[220, 'sawtooth'], [233, 'square']].forEach(([freq, type]) => {
-        const osc = ctx.createOscillator(); osc.type = type; osc.frequency.value = freq;
-        osc.connect(gain);
-        osc.start(t); osc.stop(t + 0.24);
-      });
-      env(gain.gain, t, [[0, 0.0001], [0.006, 0.5], [0.05, 0.28], [0.22, 0.0001]]);
-      noiseBurst(ctx, this.sfxBus, this.noiseBuffer, t, 0.16, {
-        filterType: 'bandpass', freq: 1500, q: 0.6, peak: 0.4,
-      });
-    });
+    if (!this.ctx) return;
+    const ctx = this.ctx;
+    const time = ctx.currentTime + 0.001;
+
+    const shaper = ctx.createWaveShaper(); shaper.curve = this._driveCurve;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.6, time);
+    g.gain.exponentialRampToValueAtTime(0.001, time + 0.3);
+    shaper.connect(g); g.connect(this.sfxBus);
+    for (const midi of [64, 65]) { // E4 + F4
+      const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = noteFreq(midi);
+      o.connect(shaper); o.start(time); o.stop(time + 0.32);
+    }
+
+    const src = this._noiseSrc();
+    const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 1500;
+    const ng = ctx.createGain();
+    ng.gain.setValueAtTime(0.5, time);
+    ng.gain.exponentialRampToValueAtTime(0.001, time + 0.15);
+    src.connect(hp); hp.connect(ng); ng.connect(this.sfxBus);
+    src.start(time); src.stop(time + 0.17);
   }
 
-  lockOn() {
-    this._safe(() => {
-      const ctx = this._ensure(); if (!ctx) return;
-      const t = ctx.currentTime;
-      [[880, 0], [1320, 0.09]].forEach(([freq, dt]) => {
-        const osc = ctx.createOscillator(); osc.type = 'square'; osc.frequency.value = freq;
-        const gain = ctx.createGain();
-        osc.connect(gain); gain.connect(this.sfxBus);
-        env(gain.gain, t + dt, [[0, 0.0001], [0.008, 0.3], [0.08, 0.0001]]);
-        osc.start(t + dt); osc.stop(t + dt + 0.09);
-      });
-    });
-  }
-
+  // Filtered-noise + saw riser rising over ~700ms at the next beat. Repeated
+  // calls with the same value are ignored; the voice is tracked for release.
   boost(on) {
-    this._safe(() => {
-      const ctx = this._ensure(); if (!ctx) return;
+    if (!this.ctx) return;
+    const wantOn = !!on;
+    if (wantOn === this._boostOn) return;
+    this._boostOn = wantOn;
+    const ctx = this.ctx;
+
+    if (wantOn) {
+      const time = this._nextGridTime(4, 0); // next beat
+      const src = this._noiseSrc(); src.loop = true;
+      const filter = ctx.createBiquadFilter(); filter.type = 'bandpass'; filter.Q.value = 0.9;
+      filter.frequency.setValueAtTime(300, time);
+      filter.frequency.exponentialRampToValueAtTime(4000, time + 0.7);
+      const o = ctx.createOscillator();
+      o.type = 'sawtooth';
+      o.frequency.setValueAtTime(110, time);
+      o.frequency.exponentialRampToValueAtTime(440, time + 0.7);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, time);
+      g.gain.linearRampToValueAtTime(0.38, time + 0.7);
+      src.connect(filter); filter.connect(g); o.connect(g); g.connect(this.sfxBus);
+      src.start(time); o.start(time);
+      this._boostVoice = { src, o, g };
+    } else {
+      const v = this._boostVoice;
+      this._boostVoice = null;
+      if (!v) return;
       const t = ctx.currentTime;
-      if (on) {
-        if (this._boostVoice) return; // already running — don't stack
-        const src = ctx.createBufferSource(); src.buffer = this.noiseBuffer; src.loop = true;
-        const filter = ctx.createBiquadFilter(); filter.type = 'bandpass'; filter.Q.value = 0.9;
-        const gain = ctx.createGain(); gain.gain.value = 0.0001;
-        src.connect(filter); filter.connect(gain); gain.connect(this.sfxBus);
-        filter.frequency.setValueAtTime(300, t);
-        filter.frequency.linearRampToValueAtTime(2200, t + 0.5);
-        env(gain.gain, t, [[0, 0.0001], [0.15, 0.35]]);
-        src.start(t);
-        this._boostVoice = { src, filter, gain };
-      } else {
-        if (!this._boostVoice) return;
-        const { src, gain } = this._boostVoice;
-        env(gain.gain, t, [[0, gain.gain.value], [0.12, 0.0001]]);
-        src.stop(t + 0.15);
-        this._boostVoice = null;
-      }
-    });
+      v.g.gain.cancelScheduledValues(t);
+      v.g.gain.setValueAtTime(v.g.gain.value, t);
+      v.g.gain.exponentialRampToValueAtTime(0.0001, t + 0.12);
+      try { v.src.stop(t + 0.15); v.o.stop(t + 0.15); } catch (_) {}
+    }
   }
 
+  // Triumphant ascending E-minor -> E-major arpeggio (Picardy-third lift)
+  // with a long delay tail, quantized to the next beat.
   gateChime() {
-    this._safe(() => {
-      const ctx = this._ensure(); if (!ctx) return;
-      const t = ctx.currentTime;
-      // Picardy-third resolution (A major) for a triumphant lift out of the dark Am key.
-      const notes = [57, 61, 64, 69, 72];
-      notes.forEach((midi, i) => {
-        const dt = i * 0.09;
-        const filter = ctx.createBiquadFilter(); filter.type = 'lowpass'; filter.frequency.value = 4000;
-        const gain = ctx.createGain();
-        const osc = ctx.createOscillator(); osc.type = 'sawtooth'; osc.frequency.value = midiToFreq(midi);
-        const osc2 = ctx.createOscillator(); osc2.type = 'square'; osc2.detune.value = 7; osc2.frequency.value = midiToFreq(midi);
-        osc.connect(filter); osc2.connect(filter); filter.connect(gain); gain.connect(this.sfxBus);
-        env(gain.gain, t + dt, [[0, 0.0001], [0.01, 0.3], [0.28, 0.0001]]);
-        osc.start(t + dt); osc.stop(t + dt + 0.3);
-        osc2.start(t + dt); osc2.stop(t + dt + 0.3);
-      });
+    if (!this.ctx) return;
+    const ctx = this.ctx;
+    const start = this._nextGridTime(4, 0);
+    const seq = [64, 67, 71, 76, 76, 80, 83, 88]; // E4 G4 B4 E5 | E5 G#5 B5 E6
+
+    const delay = ctx.createDelay(1.5);
+    delay.delayTime.value = SECONDS_PER_16TH * 3;
+    const fb = this._gain(ctx, 0.55, delay);
+    const wet = this._gain(ctx, 0.4, this.sfxBus);
+    delay.connect(fb); delay.connect(wet);
+
+    seq.forEach((midi, i) => {
+      const t = start + i * SECONDS_PER_16TH;
+      const o1 = ctx.createOscillator(); o1.type = 'triangle'; o1.frequency.value = noteFreq(midi);
+      const o2 = ctx.createOscillator(); o2.type = 'sine'; o2.frequency.value = noteFreq(midi) * 2;
+      const g = ctx.createGain();
+      this._pluck(g.gain, 0.4, 0.01, 0.34, t);
+      o1.connect(g); o2.connect(g); g.connect(this.sfxBus); g.connect(delay);
+      o1.start(t); o2.start(t);
+      o1.stop(t + 0.4); o2.stop(t + 0.4);
     });
   }
 
+  // Immediate: descending detuned drop over ~2s while the music layers ramp out.
   gameOverSting() {
-    this._safe(() => {
-      const ctx = this._ensure(); if (!ctx) return;
-      const t = ctx.currentTime;
-      const notes = [57, 53, 50, 45]; // descending A3 F3 D3 A2
-      notes.forEach((midi, i) => {
-        const dt = i * 0.22;
-        const filter = ctx.createBiquadFilter(); filter.type = 'lowpass';
-        filter.frequency.setValueAtTime(1800, t + dt);
-        filter.frequency.exponentialRampToValueAtTime(200, t + dt + 0.5);
-        const gain = ctx.createGain();
-        const osc = ctx.createOscillator(); osc.type = 'sawtooth'; osc.frequency.value = midiToFreq(midi);
-        osc.connect(filter); filter.connect(gain); gain.connect(this.sfxBus);
-        env(gain.gain, t + dt, [[0, 0.0001], [0.02, 0.35], [0.55, 0.06]]);
-        osc.start(t + dt); osc.stop(t + dt + 0.6);
-      });
-      const tailStart = t + notes.length * 0.22;
-      const dFilter = ctx.createBiquadFilter(); dFilter.type = 'lowpass'; dFilter.frequency.value = 500;
-      const dGain = ctx.createGain();
-      const d1 = ctx.createOscillator(); d1.type = 'sawtooth'; d1.frequency.value = midiToFreq(45);
-      const d2 = ctx.createOscillator(); d2.type = 'sawtooth'; d2.detune.value = -35; d2.frequency.value = midiToFreq(45);
-      d1.connect(dFilter); d2.connect(dFilter); dFilter.connect(dGain); dGain.connect(this.sfxBus);
-      env(dGain.gain, tailStart, [[0, 0.0001], [0.3, 0.35], [1.8, 0.0001]]);
-      d1.start(tailStart); d1.stop(tailStart + 1.9);
-      d2.start(tailStart); d2.stop(tailStart + 1.9);
-    });
+    if (!this.ctx) return;
+    const ctx = this.ctx;
+    const time = ctx.currentTime + 0.001;
+
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(3000, time);
+    filter.frequency.exponentialRampToValueAtTime(180, time + 2.0);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.6, time);
+    g.gain.exponentialRampToValueAtTime(0.0001, time + 2.0);
+    filter.connect(g); g.connect(this.sfxBus);
+
+    const rootFreq = noteFreq(64); // E4
+    for (const detune of [-10, 0, 10]) {
+      const o = ctx.createOscillator(); o.type = 'sawtooth'; o.detune.value = detune;
+      o.frequency.setValueAtTime(rootFreq, time);
+      o.frequency.exponentialRampToValueAtTime(rootFreq / 4, time + 2.0);
+      o.connect(filter); o.start(time); o.stop(time + 2.05);
+    }
+
+    // Music layers ramp out under the sting.
+    this._pendingIntensity = 0;
+    this._currentIntensity = 0;
+    for (const layer of [this.padGain, this.pulseGain, this.kickGain, this.percGain, this.riffGain, this.stabGain, this.fxGain]) {
+      layer.gain.cancelScheduledValues(time);
+      layer.gain.setValueAtTime(layer.gain.value, time);
+      layer.gain.linearRampToValueAtTime(0, time + 1.6);
+    }
+    this.musicBus.gain.cancelScheduledValues(time);
+    this.musicBus.gain.setValueAtTime(this.musicBus.gain.value, time);
+    this.musicBus.gain.linearRampToValueAtTime(MUSIC_BUS_GAIN * 0.15, time + 1.8);
   }
 }

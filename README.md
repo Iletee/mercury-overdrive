@@ -21,11 +21,15 @@ Then open http://localhost:3000
 
 | Input | Action |
 |---|---|
-| Mouse | Steer / aim |
+| WASD / arrows | Steer |
+| Mouse | Aim — the crosshair is a free turret cursor |
 | Click (hold) | Fire — bolts converge on the crosshair; near-target shots lock on and home |
 | Shift | Boost (drains the boost meter) |
-| W / S | Throttle up / brake |
+| X | Brake |
 | Q / E | Roll |
+
+The route through the field forks at the split rings — pink lane right,
+cyan lane left — and merges again downstream.
 
 ## How it fits together
 

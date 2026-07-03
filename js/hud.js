@@ -179,9 +179,11 @@ export class HUD {
 
 		const legend = el('div', 'mo-title__legend');
 		const controls = [
-			['MOUSE', 'steer'],
+			['WASD', 'steer'],
+			['MOUSE', 'aim'],
 			['CLICK', 'fire'],
 			['SHIFT', 'boost'],
+			['X', 'brake'],
 			['Q/E', 'roll'],
 		];
 		controls.forEach(([key, desc], i) => {

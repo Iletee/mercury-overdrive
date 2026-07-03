@@ -18,14 +18,27 @@ export const CONFIG = {
 	chunksAhead: 5,          // slabs kept generated in front of the ship
 	seed: 1984,              // deterministic field — same gauntlet every run
 
-	// Flight model
-	cruiseSpeed: 340,
-	brakeSpeed: 170,
-	boostSpeed: 920,
-	speedLerp: 2.2,          // how fast speed approaches target
-	maxYaw: 0.62,            // rad, steering cone half-angle
-	maxPitch: 0.5,
-	steerLerp: 7.0,          // sharpness of steering response
+	// Alternate routes: the field is carved into flyable corridors that fork
+	// and merge. Pick a lane at the split rings; each fork's two branches
+	// diverge to ±forkSpread and rejoin.
+	corridorRadius: 430,     // clear space around each route centerline
+	forkSpread: 1150,        // lateral offset of each branch at full split
+	forkBlend: 2600,         // units over which a fork opens/closes
+	forks: [                 // course-distance ranges where the route is split
+		{ start: 9000, end: 21000 },
+		{ start: 27000, end: 39000 },
+		{ start: 45000, end: 57000 },
+	],
+	routeRingSpacing: 1500,  // guidance rings along each corridor
+
+	// Flight model (WASD steering; sharp attack, recenters on release)
+	cruiseSpeed: 360,
+	brakeSpeed: 180,
+	boostSpeed: 940,
+	speedLerp: 2.4,          // how fast speed approaches target
+	maxYaw: 0.74,            // rad, steering cone half-angle
+	maxPitch: 0.58,
+	steerLerp: 9.5,          // sharpness of steering response
 	boostDrain: 34,          // per second
 	boostRegen: 16,
 	boostMax: 100,
