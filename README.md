@@ -1,10 +1,44 @@
 [![Gitpod ready-to-code](https://img.shields.io/badge/Gitpod-ready--to--code-blue?logo=gitpod)](https://gitpod.io/#https://github.com/Iletee/mercury-overdrive)
 
-## Mercury Overdrive
-A three.js 3D experience extragavanza in experimentation
+# Mercury Overdrive
 
-## Running 
-use the command
-npm run to run
-#Sources of stuff
-https://www.onemotion.com/drum-machine/
+A Tron-styled meteorite gauntlet. Fly a neon dart through a procedurally
+generated — but finite — asteroid field, shoot down the picket fleet, and
+reach the gate at the far end. Everything is synthesized at runtime: the
+music (a four-layer synthwave engine on raw Web Audio), the sound effects,
+the ship, the rocks, the sky. No downloaded assets, no build step.
+
+## Running
+
+```
+npm install
+npm start
+```
+
+Then open http://localhost:3000
+
+## Controls
+
+| Input | Action |
+|---|---|
+| Mouse | Steer / aim |
+| Click (hold) | Fire — bolts converge on the crosshair; near-target shots lock on and home |
+| Shift | Boost (drains the boost meter) |
+| W / S | Throttle up / brake |
+| Q / E | Roll |
+
+## How it fits together
+
+- `js/main.js` — bootstrap, game states, event wiring, the loop
+- `js/ship.js` — flight model, chase camera, procedural player ship
+- `js/field.js` — seeded chunked asteroid field (InstancedMesh, fresnel rim glow)
+- `js/enemies.js` — Shard / Seeker / Bastion behaviors
+- `js/weapons.js` — pooled bolts, crosshair-ray aiming, lock-on homing
+- `js/music.js` — procedural synthwave engine; its beat clock drives the glow pulses
+- `js/fx.js` — pooled speed-lines, explosions, hit sparks
+- `js/hud.js` + `style/main.css` — neon HUD
+- `js/sky.js` — nebula dome, starfield, outrun sun, the approaching planet
+
+The whole world pulses on the music's beat — asteroid rims, enemy glows,
+the HUD, the exhaust — because the audio engine schedules beat callbacks
+against the AudioContext clock.

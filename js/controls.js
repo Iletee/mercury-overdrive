@@ -1,148 +1,64 @@
-import * as THREE from '../node_modules/three/build/three.module.js'
+// Raw input state. No flight logic here — the ship reads from this every frame.
 
-export var MOUSEPOS = {x:0, y:0};
-export var RAWMOUSE = {x:0, y:0};
-export var SPEED=0;
-export var BULLETS=0;
-export var COUNTX=0;
-export var COUNTY=0;
-export var COUNTZ=0;
-var x;
-var y;
-var rotationX=0;
-var rotationY=0;
+export class InputState {
+	constructor(domElement) {
+		this.el = domElement;
+		// normalized mouse, -1..1, +y = screen top
+		this.mouseX = 0;
+		this.mouseY = 0;
+		// raw pixels for HUD crosshair
+		this.mousePxX = window.innerWidth / 2;
+		this.mousePxY = window.innerHeight / 2;
 
-//max right up 1.2945732784677597 2.0642676535897904 1.465160639062555 1.587605153589793
-//max right down  1.1650714197316931 2.3228801535898103  1.0845063639696175 2.0794426535897754 
-//left 1.686335360252154 3.945692653589709 1.9252201186164533 4.093717653589795
+		this.firing = false;
+		this.boosting = false;
+		this.throttleUp = false;
+		this.braking = false;
+		this.rollLeft = false;
+		this.rollRight = false;
 
-export var GameLoopControls = function(h, w){
-    this.mouseX;
-    this.mouseY;
-    this.mousePos;
-    this.lastKeyPressed;
-    this.height = h;
-    this.width = w;
+		this._keyHandlers = [];
 
-    //Listen to mouse and keyboard
-    document.addEventListener('mousemove', this.handleMouseMove, false);
-   // document.addEventListener("mousedown", this.handleMouseDown, false);
-    //document.addEventListener('keydown', this.handleKeyDown);	
-    //document.addEventListener('keyup', this.handleKeyUp);	
-}
-GameLoopControls.prototype.getMousePos = function(){
-    return this.mousePos;
-}
+		window.addEventListener('mousemove', (e) => {
+			this.mousePxX = e.clientX;
+			this.mousePxY = e.clientY;
+			this.mouseX = (e.clientX / window.innerWidth) * 2 - 1;
+			this.mouseY = 1 - (e.clientY / window.innerHeight) * 2;
+		});
 
-GameLoopControls.prototype.getWindowHeight = function(){
-    return this.height;
-}
+		window.addEventListener('mousedown', (e) => {
+			if (e.button === 0) this.firing = true;
+		});
+		window.addEventListener('mouseup', (e) => {
+			if (e.button === 0) this.firing = false;
+		});
+		window.addEventListener('blur', () => this._releaseAll());
 
-GameLoopControls.prototype.getWindowWidth = function(){
-    return this.width;
-}
+		window.addEventListener('keydown', (e) => this._key(e, true));
+		window.addEventListener('keyup', (e) => this._key(e, false));
+	}
 
-GameLoopControls.prototype.setRotationX = function(rx){
-    rotationX=rx;
-}
-GameLoopControls.prototype.setRotationY = function(ry){
-    rotationY=ry;
-}
+	onKey(code, cb) {
+		this._keyHandlers.push({ code, cb });
+	}
 
-GameLoopControls.prototype.getRotationX = function(rx){
-    rotationX=rx;
-}
-GameLoopControls.prototype.getRotationY = function(ry){
-    rotationY=ry;
-}
-export var setBullets = function(bc){
-    BULLETS=bc;
-}
-GameLoopControls.prototype.getSpeed = function(){
-    return SPEED;
-}
+	_key(e, down) {
+		switch (e.code) {
+			case 'ShiftLeft':
+			case 'ShiftRight': this.boosting = down; break;
+			case 'KeyW':
+			case 'ArrowUp': this.throttleUp = down; break;
+			case 'KeyS':
+			case 'ArrowDown': this.braking = down; break;
+			case 'KeyQ': this.rollLeft = down; break;
+			case 'KeyE': this.rollRight = down; break;
+			case 'Space': this.firing = down; e.preventDefault(); break;
+		}
+		if (down) for (const h of this._keyHandlers) if (h.code === e.code) h.cb();
+	}
 
-
-
-//after getters and setters come the functions
-
-GameLoopControls.prototype.handleMouseMove = function(event){
-	// here we are converting the mouse position value received 
-	// to a normalized value varying between -1 and 1;
-	// this is the formula for the horizontal axis:
-	
-	var tx = -1 + (event.clientX /  window.innerWidth)*2;
-
-	// for the vertical axis, we need to inverse the formula 
-	// because the 2D y-axis goes the opposite direction of the 3D y-axis
-	
-	var ty = 1 - (event.clientY / window.innerHeight)*2;
-    MOUSEPOS = {x:tx, y:ty};
-
-    // move aiming recticle
-    document.getElementById("aiming").style.left = event.clientX-50+"px";
-    document.getElementById("aiming").style.top = event.clientY-50+"px";
-
-    RAWMOUSE = {x:event.clientX, y:event.clientY};
-}
-
-GameLoopControls.prototype.handleMouseDown = function(event){
-    // pew pew pew
-    console.log("mousedown");
-    BULLETS+=1;
-  
-}
-
-GameLoopControls.prototype.handleKeyDown = function(event){
-    
-
-    if(event.key=="w"){
-        if (SPEED >= -5) SPEED+=1;
-    }
-    if(event.key=="s"){
-        
-        if (SPEED <=100) SPEED-=1;
-    }   
-    if(event.key=="d"){
-        COUNTX-=0.1;
-       
-    }   
-    if(event.key =="a"){
-        COUNTX+=0.1;
-    }
-    //temp xyz debuggint
-    if(event.key =="i"){
-        COUNTX+=0.1;
-    }
-    if(event.key =="o"){
-        COUNTY+=0.1;
-    }
-    if(event.key =="p"){
-        COUNTZ+=0.1;
-    }
-    if(event.key =="j"){
-        COUNTX-=0.1;
-    }
-    if(event.key =="k"){
-        COUNTY-=0.1;
-    }
-    if(event.key =="l"){
-        COUNTZ-=0.1;
-    }
-    if(event.keyCode==32){
-        console.log(MOUSEPOS);
-
-    }
-}
-GameLoopControls.prototype.handleKeyUp = function(event){
-    
-
-  
-    if(event.key=="d"){
-        COUNTX=0;
-       
-    }   
-    if(event.key =="a"){
-        COUNTX=0;
-    }
+	_releaseAll() {
+		this.firing = this.boosting = this.throttleUp = false;
+		this.braking = this.rollLeft = this.rollRight = false;
+	}
 }
