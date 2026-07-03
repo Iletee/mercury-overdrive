@@ -76,6 +76,16 @@ export class PlayerShip {
 		this.glow.position.set(0, 2, 6);
 		this.group.add(this.glow);
 
+		// shield bubble: invisible until it absorbs a hit, faint shimmer when armed
+		this.bubble = new THREE.Mesh(
+			new THREE.IcosahedronGeometry(15, 1),
+			new THREE.MeshBasicMaterial({
+				color: Colors.cyan, transparent: true, opacity: 0,
+				blending: THREE.AdditiveBlending, depthWrite: false, wireframe: true,
+			})
+		);
+		this.group.add(this.bubble);
+
 		scene.add(this.group);
 
 		// Flight state
@@ -88,6 +98,10 @@ export class PlayerShip {
 		this.hp = CONFIG.playerHp;
 		this.invuln = 0;
 		this.radius = CONFIG.shipRadius;
+		// shield: one absorbing charge, recharges over time
+		this.shieldReady = true;
+		this.shieldTimer = CONFIG.shieldRecharge;
+		this._bubbleFlash = 0;
 
 		// slewed steering inputs: keys ramp in/out instead of snapping
 		this.steerVX = 0;
@@ -200,6 +214,19 @@ export class PlayerShip {
 		} else {
 			this.edges.material.opacity = 1;
 		}
+		// shield recharge + bubble visuals
+		if (!this.shieldReady) {
+			this.shieldTimer += dt;
+			if (this.shieldTimer >= CONFIG.shieldRecharge) {
+				this.shieldReady = true;
+				if (this.onShieldUp) this.onShieldUp();
+			}
+		}
+		this._bubbleFlash = Math.max(0, this._bubbleFlash - dt * 2.2);
+		this.bubble.material.opacity =
+			this._bubbleFlash * 0.55 + (this.shieldReady ? 0.045 + this._beatKick * 0.03 : 0);
+		this.bubble.rotation.y += dt * 0.7;
+
 		this._beatKick = Math.max(0, this._beatKick - dt * 4);
 		const thrust = this.speed / CONFIG.boostSpeed;
 		this.exhaust.scale.set(1, 0.6 + thrust * 2.2 + this._beatKick * 0.5, 1);
@@ -238,13 +265,22 @@ export class PlayerShip {
 		camera.updateProjectionMatrix();
 	}
 
+	// returns 'shield' (absorbed), 'hull' (hp lost), or false (grace period)
 	takeDamage(n = 1) {
 		if (this.invuln > 0 || !this.alive) return false;
+		if (this.shieldReady) {
+			this.shieldReady = false;
+			this.shieldTimer = 0;
+			this._bubbleFlash = 1;
+			this.invuln = 0.8;
+			this._shake = Math.max(this._shake, 0.5);
+			return 'shield';
+		}
 		this.hp -= n;
 		this.invuln = CONFIG.invulnTime;
 		this._hurtBlink = CONFIG.invulnTime;
 		this._shake = 1;
-		return true;
+		return 'hull';
 	}
 
 	nudgeOutOf(normal, depth) {
@@ -268,5 +304,8 @@ export class PlayerShip {
 		this.hp = CONFIG.playerHp;
 		this.invuln = 0;
 		this._shake = 0;
+		this.shieldReady = true;
+		this.shieldTimer = CONFIG.shieldRecharge;
+		this._bubbleFlash = 0;
 	}
 }

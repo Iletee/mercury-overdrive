@@ -47,6 +47,7 @@ export const CONFIG = {
 
 	// Combat
 	playerHp: 5,
+	shieldRecharge: 9,       // s without using it before the shield is back
 	shipRadius: 8,
 	boltSpeed: 2600,
 	enemyBoltSpeed: 1050,

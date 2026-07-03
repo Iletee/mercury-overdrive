@@ -31,6 +31,11 @@ Then open http://localhost:3000
 The route through the field forks at the split rings — pink lane right,
 cyan lane left — and merges again downstream.
 
+A one-charge shield absorbs the next hit and recharges over ~9 seconds
+(the cyan meter under BOOST hums when it's armed). The soundtrack follows
+the run: course thirds change the musical section, and each live enemy
+type layers its own motif into the mix.
+
 ## How it fits together
 
 - `js/main.js` — bootstrap, game states, event wiring, the loop

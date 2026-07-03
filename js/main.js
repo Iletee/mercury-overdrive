@@ -125,12 +125,19 @@ function addScore(n) {
 }
 
 function hurtPlayer() {
-	if (!ship.takeDamage(1)) return;
+	const result = ship.takeDamage(1);
+	if (!result) return;
+	if (result === 'shield') {
+		music.shieldHit();
+		return;
+	}
 	hud.damageFlash();
 	hud.setHull(ship.hp, CONFIG.playerHp);
 	music.playerHit();
 	if (ship.hp <= 0) endGame(false);
 }
+
+ship.onShieldUp = () => music.shieldUp();
 
 // --- state transitions -------------------------------------------------------
 hud.bindStart(async () => {
@@ -231,9 +238,17 @@ function updatePlaying(dt) {
 	sunLight.target.position.copy(ship.position);
 
 	// HUD
+	// the soundtrack tracks the run: course thirds change the section, and
+	// live enemies each contribute their own motif layer
+	music.setSection(Math.min(2, Math.floor(p * 3)));
+	_presence.shard = _presence.seeker = _presence.bastion = 0;
+	for (const e of enemies.active) _presence[e.type] += 1;
+	music.setPresence(_presence);
+
 	hud.setSpeed(ship.speed);
 	hud.setBoost(ship.boost / CONFIG.boostMax);
 	hud.setProgress(p);
+	hud.setShield(ship.shieldReady ? 1 : ship.shieldTimer / CONFIG.shieldRecharge, ship.shieldReady);
 	if (weapons.lockState === 'none') hud.hideLock();
 	else hud.setLock(weapons.lockPx.x, weapons.lockPx.y, weapons.lockState === 'locked');
 	updatePings();
@@ -260,6 +275,7 @@ function progress() {
 
 // radar pings: project every hostile to the screen; clamp off-screen (or
 // behind-camera) contacts to the edge with a chevron pointing their way
+const _presence = { shard: 0, seeker: 0, bastion: 0 };
 const _pingV = new THREE.Vector3();
 const _pings = [];
 function updatePings() {

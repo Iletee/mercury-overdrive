@@ -267,6 +267,37 @@ html, body {
 	transition: transform 0.08s linear;
 }
 
+.mo-shield {
+	margin-top: 8px;
+}
+
+.mo-shield__track {
+	margin-top: 4px;
+	height: 8px;
+	border: 1px solid rgba(45, 226, 230, 0.5);
+	background: rgba(45, 226, 230, 0.07);
+	overflow: hidden;
+}
+
+.mo-shield__fill {
+	height: 100%;
+	width: 100%;
+	transform: scaleX(0);
+	transform-origin: left center;
+	background: linear-gradient(90deg, #17787b, var(--cyan));
+	box-shadow: 0 0 10px var(--cyan-soft);
+	transition: transform 0.12s linear;
+}
+
+.mo-shield--ready .mo-shield__fill {
+	animation: mo-shield-hum 1.1s ease-in-out infinite alternate;
+}
+
+@keyframes mo-shield-hum {
+	from { box-shadow: 0 0 8px var(--cyan-soft); filter: brightness(1); }
+	to { box-shadow: 0 0 18px var(--cyan); filter: brightness(1.35); }
+}
+
 .mo-boost--full .mo-boost__fill {
 	animation: mo-boost-shimmer 0.9s ease-in-out infinite alternate;
 }

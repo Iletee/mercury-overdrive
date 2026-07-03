@@ -110,9 +110,31 @@ export class HUD {
 		boost.appendChild(boostTrack);
 		wrap.appendChild(boost);
 
+		const shield = el('div', 'mo-shield');
+		shield.appendChild(el('div', 'mo-hud-label mo-hud-label--sm', 'SHIELD'));
+		const shieldTrack = el('div', 'mo-shield__track');
+		this.shieldFillEl = el('div', 'mo-shield__fill');
+		shieldTrack.appendChild(this.shieldFillEl);
+		shield.appendChild(shieldTrack);
+		wrap.appendChild(shield);
+
 		this.hullContainerEl = wrap;
 		this.boostContainerEl = boost;
+		this.shieldContainerEl = shield;
 		this.rootEl.appendChild(wrap);
+	}
+
+	// t: 0..1 recharge progress; ready: shield armed
+	setShield(t, ready) {
+		const ct = Math.max(0, Math.min(1, t));
+		if (ct !== this._lastShield) {
+			this._lastShield = ct;
+			this.shieldFillEl.style.transform = `scaleX(${ct.toFixed(3)})`;
+		}
+		if (ready !== this._lastShieldReady) {
+			this._lastShieldReady = ready;
+			this.shieldContainerEl.classList.toggle('mo-shield--ready', !!ready);
+		}
 	}
 
 	_buildSpeed() {

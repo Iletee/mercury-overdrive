@@ -40,43 +40,106 @@ const MASTER_GAIN = 0.9;
 const MUSIC_BUS_GAIN = dbToGain(-8); // music sits ~-8dB of headroom
 const SFX_BUS_GAIN = 0.9;
 
-// 8-bar modal loop, E minor, Tron-score style: mostly a drone with just
-// enough movement to feel like it's going somewhere.
-const CHORD_ROOTS = [40, 40, 48, 50, 40, 40, 48, 47]; // Em Em C D Em Em C B
-
-// Derezzed-style riff: semitone offsets from a bar's root, two 8-step cells
-// per bar (steps 0-7, 8-15). Octave jumps + a chromatic passing tone give it
-// the "bite". Root sits an octave above the pad/bass drone root.
-const RIFF_CELL_MAIN = [0, 0, 3, 0, 5, 3, 2, 0];    // E-E-G-E-A-G-F#-E
-const RIFF_CELL_WIDE = [0, 3, 0, 5, 7, 5, 3, 0];    // E-G-E-A-B-A-G-E
-const RIFF_CELL_OCT = [12, 0, 3, 7, 5, 3, 2, 0];    // octave-up stab then fall
-const RIFF_CELL_CHR = [0, 0, 3, 5, 3, 0, -2, 0];    // chromatic dip / bite
-const RIFF_CELL_PAIRS = [
-  [RIFF_CELL_MAIN, RIFF_CELL_MAIN], [RIFF_CELL_MAIN, RIFF_CELL_OCT],
-  [RIFF_CELL_WIDE, RIFF_CELL_WIDE], [RIFF_CELL_WIDE, RIFF_CELL_CHR],
-  [RIFF_CELL_MAIN, RIFF_CELL_MAIN], [RIFF_CELL_OCT, RIFF_CELL_MAIN],
-  [RIFF_CELL_WIDE, RIFF_CELL_CHR], [RIFF_CELL_CHR, RIFF_CELL_MAIN],
+// Three course-section variants, switched via setSection(0|1|2) as the
+// player crosses course thirds (applied at the next bar boundary). All are
+// dark/modal E-minor family so the pump bus, bass and pad code below never
+// has to care which section is active — only the pitch material and riff
+// pattern change.
+//   S0: Em Em C D Em Em C B  — the original drone-and-turn loop.
+//   S1: Em G D Am, twice     — more harmonic movement, still modal.
+//   S2: Em C Am B, rising    — same family, climbs across the 8-bar phrase
+//       before folding back to the loop point.
+const SECTION_CHORD_ROOTS = [
+  [40, 40, 48, 50, 40, 40, 48, 47], // S0: Em Em C D Em Em C B
+  [40, 43, 50, 45, 40, 43, 50, 45], // S1: Em G D Am / Em G D Am
+  [40, 48, 45, 47, 52, 48, 45, 59], // S2: Em C Am B, climbing to B5
 ];
-const RIFF_BARS = CHORD_ROOTS.map((root, i) => ({ root: root + 12, cells: RIFF_CELL_PAIRS[i] }));
 
-// Rez-style ascending E-minor-pentatonic sequence for playerShoot(). Walks up
-// this list on every shot, resets to index 0 at every new bar.
-const PENTATONIC_SEQUENCE = [64, 67, 69, 71, 74, 76, 79, 81, 83, 86, 88, 91, 93, 95, 98, 100];
+// Derezzed-style riff cells: semitone offsets from a bar's root, two 8-step
+// cells per bar (steps 0-7, 8-15). `null` is a rhythmic rest. Octave jumps,
+// passing tones and gaps give the variants below their distinct character.
+const RIFF_CELL_MAIN = [0, 0, 3, 0, 5, 3, 2, 0];          // E-E-G-E-A-G-F#-E
+const RIFF_CELL_WIDE = [0, 3, 0, 5, 7, 5, 3, 0];          // E-G-E-A-B-A-G-E
+const RIFF_CELL_OCT = [12, 0, 3, 7, 5, 3, 2, 0];          // octave-up stab then fall
+const RIFF_CELL_CHR = [0, 0, 3, 5, 3, 0, -2, 0];          // chromatic dip / bite
+const RIFF_CELL_GAP = [0, null, 3, null, 7, 5, null, 0];  // syncopated, sparser
+const RIFF_CELL_HIGH = [12, 7, 12, 10, 12, 7, 5, 3];      // octave-up register
+const RIFF_CELL_PASS = [0, 2, 3, 5, 7, 5, 3, 2];          // stepwise passing tones
+
+// Three riff-pattern variants, rotated phrase-by-phrase (see
+// _activeRiffBars) so an 8-bar loop never plays the same shape twice in a
+// row. Each section reuses these same three variants, transposed onto its
+// own chord roots.
+const RIFF_VARIANTS = [
+  [ // close to the original hook
+    [RIFF_CELL_MAIN, RIFF_CELL_MAIN], [RIFF_CELL_MAIN, RIFF_CELL_OCT],
+    [RIFF_CELL_WIDE, RIFF_CELL_WIDE], [RIFF_CELL_WIDE, RIFF_CELL_CHR],
+    [RIFF_CELL_MAIN, RIFF_CELL_MAIN], [RIFF_CELL_OCT, RIFF_CELL_MAIN],
+    [RIFF_CELL_WIDE, RIFF_CELL_CHR], [RIFF_CELL_CHR, RIFF_CELL_MAIN],
+  ],
+  [ // sparser + syncopated — leaves gaps for the pump to breathe
+    [RIFF_CELL_GAP, RIFF_CELL_MAIN], [RIFF_CELL_GAP, RIFF_CELL_WIDE],
+    [RIFF_CELL_MAIN, RIFF_CELL_GAP], [RIFF_CELL_CHR, RIFF_CELL_GAP],
+    [RIFF_CELL_GAP, RIFF_CELL_OCT], [RIFF_CELL_WIDE, RIFF_CELL_GAP],
+    [RIFF_CELL_GAP, RIFF_CELL_MAIN], [RIFF_CELL_MAIN, RIFF_CELL_CHR],
+  ],
+  [ // higher octave placement + stepwise passing tones
+    [RIFF_CELL_HIGH, RIFF_CELL_PASS], [RIFF_CELL_MAIN, RIFF_CELL_HIGH],
+    [RIFF_CELL_PASS, RIFF_CELL_WIDE], [RIFF_CELL_HIGH, RIFF_CELL_CHR],
+    [RIFF_CELL_PASS, RIFF_CELL_MAIN], [RIFF_CELL_HIGH, RIFF_CELL_PASS],
+    [RIFF_CELL_WIDE, RIFF_CELL_HIGH], [RIFF_CELL_PASS, RIFF_CELL_CHR],
+  ],
+];
+
+function buildRiffBars(chordRoots, cellPairs) {
+  return chordRoots.map((root, i) => ({ root: root + 12, cells: cellPairs[i % cellPairs.length] }));
+}
+
+// One entry per section: its chord loop plus the same 3 riff variants
+// transposed onto it. Picked by setSection() + phrase index — see
+// _activeChordRoots/_activeRiffBars in _scheduleStep.
+const SECTIONS = SECTION_CHORD_ROOTS.map(chordRoots => ({
+  chordRoots,
+  riffBarsByVariant: RIFF_VARIANTS.map(variant => buildRiffBars(chordRoots, variant)),
+}));
+
+// Rez-style ascending E-minor-pentatonic sequences for playerShoot(), one per
+// section so the shot melody always resonates with whichever chord/section
+// is currently playing. All three walk the same E-minor-pentatonic pitch
+// collection (E G A B D); each starts on a different scale degree to match
+// its section's harmonic centre. Walks up on every shot, resets to index 0
+// at every new bar.
+const PENTATONIC_SEQUENCES = [
+  [64, 67, 69, 71, 74, 76, 79, 81, 83, 86, 88, 91, 93, 95, 98, 100],    // S0 — rooted on E
+  [67, 69, 71, 74, 76, 79, 81, 83, 86, 88, 91, 93, 95, 98, 100, 103],  // S1 — rooted on G
+  [71, 74, 76, 79, 81, 83, 86, 88, 91, 93, 95, 98, 100, 103, 105, 107], // S2 — rooted on B
+];
 
 // Per-layer target gain by intensity level [0, 1, 2, 3].
 // (pad/riff trimmed slightly vs. their pre-harmonics-enrichment levels to
-// leave headroom for the added unison/stack/shimmer partials below.)
+// leave headroom for the added unison/stack/shimmer partials below. riff and
+// pulse trimmed a further ~2.5dB on top of that to tame the bass/riff bite —
+// see the drive-curve comments in the constructor.)
 const LAYER_GAIN = {
   pad: [0.50, 0.46, 0.42, 0.39],
-  pulse: [0.55, 0, 0, 0],
+  pulse: [0.41, 0, 0, 0],
   kick: [0, 0.90, 0.90, 0.90],
   perc: [0, 0.65, 0.70, 0.75], // hats + snare/clap share this bus
-  riff: [0, 0, 0.78, 0.74],
+  riff: [0, 0, 0.58, 0.56],
   stab: [0, 0, 0, 0.55],
   fx: [0, 0, 0, 0.70],        // riser + crash
   shimmer: [0, 0, dbToGain(-20), dbToGain(-20)], // high-register "air" doubling the riff, 2 8ves up
 };
 const INTENSITY_RAMP_SEC = 0.05; // "50ms gain ramps" applied at the bar boundary
+
+// Enemy-presence motif layer gains by live count [0, 1, 2, 3] — gentle
+// scaling, capped at 3, each sitting around -14dB so they color the mix
+// rather than dominate it.
+const PRESENCE_GAIN = {
+  shard: [0, dbToGain(-16), dbToGain(-14), dbToGain(-12)],
+  seeker: [0, dbToGain(-16), dbToGain(-14), dbToGain(-12)],
+  bastion: [0, dbToGain(-15), dbToGain(-13), dbToGain(-11)],
+};
 
 function makeDriveCurve(amount = 18) {
   const n = 256, curve = new Float32Array(n), norm = Math.tanh(amount) || 1;
@@ -112,6 +175,19 @@ export class SynthwaveEngine {
     this._pendingIntensity = 0;
     this._currentIntensity = 0;
 
+    // Section (course-third, 0-2) set via setSection(); pendingSection
+    // applies at the next bar boundary. _activeChordRoots/_activeRiffBars
+    // are the resolved pattern data for whatever bar is currently playing.
+    this._pendingSection = 0;
+    this._currentSection = 0;
+    this._activeChordRoots = SECTIONS[0].chordRoots;
+    this._activeRiffBars = SECTIONS[0].riffBarsByVariant[0];
+
+    // Live enemy-type counts set via setPresence(); pendingPresence applies
+    // at the next bar boundary with short gain ramps.
+    this._presence = { shard: 0, seeker: 0, bastion: 0 };
+    this._pendingPresence = { shard: 0, seeker: 0, bastion: 0 };
+
     this._beatCallbacks = [];
     this._barCallbacks = [];
 
@@ -124,12 +200,12 @@ export class SynthwaveEngine {
     this._boostVoice = null;
 
     // Static waveshaper curves — pure data, no ctx needed, build once.
-    // (drive deepened slightly from the original 18 — more odd-harmonic bite
-    // on the riff/stab/hit voices that already route through it.)
-    this._driveCurve = makeDriveCurve(22);
-    // Very gentle bus-level saturation for the pump bus (pad+riff+pulse+
-    // shimmer) — low drive so it reads as warmth, not fuzz.
-    this._padDriveCurve = makeDriveCurve(5);
+    // (pulled back from an earlier, too-hard pass at 22 — 13 keeps the
+    // riff/stab/hit voices driving without turning harsh.)
+    this._driveCurve = makeDriveCurve(13);
+    // Near-subtle bus-level saturation for the pump bus (pad+riff+pulse+
+    // shimmer) — just enough to round the mix, not add fuzz.
+    this._padDriveCurve = makeDriveCurve(3);
     this._crushCurve = makeCrushCurve(6);
   }
 
@@ -180,6 +256,27 @@ export class SynthwaveEngine {
 
   setIntensity(level) {
     this._pendingIntensity = Math.max(0, Math.min(3, level | 0)); // applied at next bar
+  }
+
+  // Course-section (0, 1, 2) — call as the player crosses course thirds.
+  // Swaps the chord loop + rotates the riff variant bank; applies at the
+  // next bar boundary so the switch never happens mid-bar. No-ops
+  // gracefully before start() (just records the pending value).
+  setSection(n) {
+    this._pendingSection = Math.max(0, Math.min(SECTIONS.length - 1, n | 0));
+  }
+
+  // Live enemy-type counts ({ shard, seeker, bastion }). Safe to call every
+  // frame: if the values match what's already pending this is a fast no-op.
+  // Otherwise the new counts (each clamped to 0-3) apply — with short gain
+  // ramps — at the next bar boundary. No-ops gracefully before start().
+  setPresence({ shard = 0, seeker = 0, bastion = 0 } = {}) {
+    const s = Math.max(0, Math.min(3, shard | 0));
+    const k = Math.max(0, Math.min(3, seeker | 0));
+    const b = Math.max(0, Math.min(3, bastion | 0));
+    const p = this._pendingPresence;
+    if (p.shard === s && p.seeker === k && p.bastion === b) return;
+    p.shard = s; p.seeker = k; p.bastion = b;
   }
 
   // ---- Audio graph ------------------------------------------------------
@@ -233,6 +330,21 @@ export class SynthwaveEngine {
     this.shimmerDelay.connect(shimmerFeedback);
     this.shimmerDelay.connect(this.shimmerGain);
 
+    // Enemy-presence motif layers (shard/seeker/bastion) — quiet, distinct,
+    // routed through the pump bus so they duck with every kick like the
+    // rest of the mix.
+    this.shardGain = this._gain(ctx, 0, this.pumpBus);
+    this.seekerGain = this._gain(ctx, 0, this.pumpBus);
+    this.bastionGain = this._gain(ctx, 0, this.pumpBus);
+
+    // Short delay send for the shard arp — a quick glassy trail (much
+    // shorter/tighter than the shimmer bus's feedback tail).
+    this.shardDelay = ctx.createDelay(1.0);
+    this.shardDelay.delayTime.value = SECONDS_PER_16TH * 2;
+    const shardFeedback = this._gain(ctx, 0.2, this.shardDelay);
+    this.shardDelay.connect(shardFeedback);
+    this.shardDelay.connect(this.shardGain);
+
     // Shared white-noise buffer for hats/snare/riser/crash/explosions.
     const len = Math.floor(ctx.sampleRate * 2);
     this._noiseBuf = ctx.createBuffer(1, len, ctx.sampleRate);
@@ -257,7 +369,7 @@ export class SynthwaveEngine {
     filter.Q.value = 0.6;
     filter.connect(this.padGain);
 
-    const rootFreq = noteFreq(CHORD_ROOTS[0]);
+    const rootFreq = noteFreq(SECTIONS[0].chordRoots[0]);
 
     // Slow chorus LFO — nudges the outer unison voices a few cents so the
     // pad breathes instead of sitting perfectly static.
@@ -282,7 +394,7 @@ export class SynthwaveEngine {
 
     this.padSub = ctx.createOscillator();
     this.padSub.type = 'sine';
-    this.padSub.frequency.value = noteFreq(CHORD_ROOTS[0] - 12);
+    this.padSub.frequency.value = noteFreq(SECTIONS[0].chordRoots[0] - 12);
     this.padSub.connect(filter); this.padSub.start();
 
     // Quiet fifth + octave-up partials (-12dB) so the pad voices a full
@@ -292,7 +404,7 @@ export class SynthwaveEngine {
     this.padStackOscs = [7, 24].map((interval, i) => {
       const o = ctx.createOscillator();
       o.type = 'sawtooth';
-      o.frequency.value = noteFreq(CHORD_ROOTS[0] + interval);
+      o.frequency.value = noteFreq(SECTIONS[0].chordRoots[0] + interval);
       o.detune.value = i === 0 ? -6 : 6;
       const pan = ctx.createStereoPanner(); pan.pan.value = stackPan[i];
       o.connect(pan); pan.connect(stackGain);
@@ -339,6 +451,12 @@ export class SynthwaveEngine {
     this._gridEpoch = this.ctx.currentTime + 0.05;
     this._nextNoteTime = this._gridEpoch;
     this._currentIntensity = this._pendingIntensity;
+    this._currentSection = this._pendingSection;
+    this._activeChordRoots = SECTIONS[this._currentSection].chordRoots;
+    this._activeRiffBars = SECTIONS[this._currentSection].riffBarsByVariant[0];
+    this._presence.shard = this._pendingPresence.shard;
+    this._presence.seeker = this._pendingPresence.seeker;
+    this._presence.bastion = this._pendingPresence.bastion;
   }
 
   _scheduler() {
@@ -377,8 +495,15 @@ export class SynthwaveEngine {
 
     if (step === 0) {
       this._currentIntensity = this._pendingIntensity;
+      this._currentSection = this._pendingSection;
+      // Rotate riff variant every phrase (8 bars) so the loop never repeats
+      // identically twice in a row; each section reuses the same 3 variants.
+      const variantIndex = Math.floor(bar / BARS_PER_PHRASE) % RIFF_VARIANTS.length;
+      this._activeChordRoots = SECTIONS[this._currentSection].chordRoots;
+      this._activeRiffBars = SECTIONS[this._currentSection].riffBarsByVariant[variantIndex];
       this._applyIntensityGains(time);
-      this._updatePadChord(CHORD_ROOTS[phraseBar], time);
+      this._applyPresenceGains(time);
+      this._updatePadChord(this._activeChordRoots[phraseBar], time);
       this._fireBar(bar, time);
       if (this._currentIntensity >= 3 && phraseBar === 0 && bar > 0) {
         this._triggerCrash(time); // resolves the riser from the previous bar
@@ -389,7 +514,7 @@ export class SynthwaveEngine {
     const lvl = this._currentIntensity;
 
     // Level 0: ominous drone + sparse deep pulse (half notes).
-    if (lvl === 0 && (step === 0 || step === 8)) this._triggerPulse(CHORD_ROOTS[phraseBar] - 12, time);
+    if (lvl === 0 && (step === 0 || step === 8)) this._triggerPulse(this._activeChordRoots[phraseBar] - 12, time);
 
     // Level 1+: four-on-the-floor kick (drives the pump), offbeat open hat,
     // snare/clap on 2 & 4.
@@ -402,8 +527,22 @@ export class SynthwaveEngine {
 
     // Level 3+: 16th closed hats, accent stabs, riser into the phrase turn.
     if (lvl >= 3) this._triggerHat(time, false);
-    if (lvl >= 3 && (step === 0 || step === 14)) this._triggerStab(CHORD_ROOTS[phraseBar], time);
+    if (lvl >= 3 && (step === 0 || step === 14)) this._triggerStab(this._activeChordRoots[phraseBar], time);
     if (lvl >= 3 && phraseBar === BARS_PER_PHRASE - 1 && step === 0) this._triggerRiser(time, SECONDS_PER_BEAT * 4);
+
+    // Enemy-presence motifs — gated purely by live counts, independent of
+    // intensity `lvl`, so they can color even a quiet moment. All three
+    // route through the pump bus (see _buildGraph) so they duck on the kick.
+    if (this._presence.shard > 0 && (step === 3 || step === 7 || step === 11 || step === 15)) {
+      this._triggerShardMotif(time);
+    }
+    if (this._presence.seeker > 0 && step % 2 === 0) {
+      this._triggerSeekerPulse(phraseBar, time);
+    }
+    if (this._presence.bastion > 0 && step === 0) {
+      this._triggerBastionStab(phraseBar, time);
+      if (bar % 2 === 0) this._triggerBastionSwell(time);
+    }
   }
 
   _applyIntensityGains(time) {
@@ -422,6 +561,18 @@ export class SynthwaveEngine {
     node.gain.cancelScheduledValues(time);
     node.gain.setValueAtTime(node.gain.value, time);
     node.gain.linearRampToValueAtTime(target, time + ramp);
+  }
+
+  // Applies pendingPresence -> presence with short gain ramps. Called once
+  // per bar from _scheduleStep; cheap even when nothing changed.
+  _applyPresenceGains(time) {
+    this._presence.shard = this._pendingPresence.shard;
+    this._presence.seeker = this._pendingPresence.seeker;
+    this._presence.bastion = this._pendingPresence.bastion;
+    const ramp = 0.15; // short gain ramp, longer than the 50ms intensity ramp
+    this._rampGain(this.shardGain, PRESENCE_GAIN.shard[this._presence.shard], time, ramp);
+    this._rampGain(this.seekerGain, PRESENCE_GAIN.seeker[this._presence.seeker], time, ramp);
+    this._rampGain(this.bastionGain, PRESENCE_GAIN.bastion[this._presence.bastion], time, ramp);
   }
 
   // ---- THE PUMP — Daft Punk sidechain duck, fired on every kick ---------
@@ -482,10 +633,11 @@ export class SynthwaveEngine {
     o.connect(g); g.connect(this.pulseGain);
 
     // Quiet saw partner, tamed by its own lowpass — adds harmonic content to
-    // the drone without turning the sub pulse into a buzz.
+    // the drone without turning the sub pulse into a buzz. Cutoff darkened
+    // slightly (was 900) to keep the low end round rather than buzzy.
     const saw = ctx.createOscillator();
     saw.type = 'sawtooth'; saw.frequency.value = noteFreq(midi);
-    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 900; lp.Q.value = 0.5;
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 650; lp.Q.value = 0.5;
     const sg = ctx.createGain();
     this._pluck(sg.gain, 0.8 * dbToGain(-12), 0.02, 0.88, time);
     saw.connect(lp); lp.connect(sg); sg.connect(this.pulseGain);
@@ -519,9 +671,11 @@ export class SynthwaveEngine {
   }
 
   _triggerRiffStep(phraseBar, step, time) {
-    const barDef = RIFF_BARS[phraseBar];
+    const barDef = this._activeRiffBars[phraseBar];
     const cell = step < 8 ? barDef.cells[0] : barDef.cells[1];
-    const midi = barDef.root + cell[step % 8];
+    const offset = cell[step % 8];
+    if (offset === null) return; // rhythmic gap — rest
+    const midi = barDef.root + offset;
     const dur = SECONDS_PER_16TH * 0.9;
     this._triggerRiffNote(midi, time, dur);
     // Shimmer/air: a very quiet 16th-note double of the riff, two octaves up.
@@ -610,6 +764,76 @@ export class SynthwaveEngine {
     src.start(time); src.stop(time + 1.3);
   }
 
+  // ---- Enemy-presence motif layers (task 3) ------------------------------
+
+  // Shard: nervous, glassy — a two-note arp blip on syncopated 16th
+  // offbeats, sent to a short feedback delay for a bit of sparkle trail.
+  _triggerShardMotif(time) {
+    const ctx = this.ctx;
+    const notes = [88, 91]; // E6, G6 — high and glassy
+    notes.forEach((midi, i) => {
+      const t = time + i * SECONDS_PER_16TH * 0.5;
+      const o = ctx.createOscillator();
+      o.type = 'triangle'; o.frequency.value = noteFreq(midi);
+      const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 4000;
+      const g = ctx.createGain();
+      this._pluck(g.gain, 0.6, 0.002, 0.07, t);
+      o.connect(hp); hp.connect(g);
+      g.connect(this.shardGain);
+      g.connect(this.shardDelay);
+      o.start(t); o.stop(t + 0.09);
+    });
+  }
+
+  // Seeker: urgent, low-mid, chase energy — a filtered-square ostinato pulse
+  // on every 8th note, pitched to the current chord root.
+  _triggerSeekerPulse(phraseBar, time) {
+    const ctx = this.ctx;
+    const midi = this._activeChordRoots[phraseBar];
+    const o = ctx.createOscillator();
+    o.type = 'square'; o.frequency.value = noteFreq(midi);
+    const filter = ctx.createBiquadFilter(); filter.type = 'lowpass'; filter.frequency.value = 500; filter.Q.value = 4;
+    const g = ctx.createGain();
+    this._pluck(g.gain, 0.5, 0.003, SECONDS_PER_16TH * 1.6, time);
+    o.connect(filter); filter.connect(g); g.connect(this.seekerGain);
+    o.start(time); o.stop(time + SECONDS_PER_16TH * 2);
+  }
+
+  // Bastion: dark and heavy — a slow-attack detuned-saw drone swell every 2
+  // bars, rooted an octave below the current chord.
+  _triggerBastionSwell(time) {
+    const ctx = this.ctx;
+    const dur = SECONDS_PER_BEAT * 4 * 2; // 2 bars
+    const root = this._activeChordRoots[0];
+    const filter = ctx.createBiquadFilter(); filter.type = 'lowpass'; filter.frequency.value = 400; filter.Q.value = 0.7;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, time);
+    g.gain.linearRampToValueAtTime(0.7, time + dur * 0.4);
+    g.gain.exponentialRampToValueAtTime(0.0001, time + dur);
+    filter.connect(g); g.connect(this.bastionGain);
+    for (const detune of [-9, 0, 9]) {
+      const o = ctx.createOscillator();
+      o.type = 'sawtooth'; o.detune.value = detune; o.frequency.value = noteFreq(root - 12);
+      o.connect(filter); o.start(time); o.stop(time + dur + 0.1);
+    }
+  }
+
+  // Bastion: low brass-like stab on every bar's downbeat — slow attack,
+  // detuned saws through a dark lowpass.
+  _triggerBastionStab(phraseBar, time) {
+    const ctx = this.ctx;
+    const root = this._activeChordRoots[phraseBar];
+    const filter = ctx.createBiquadFilter(); filter.type = 'lowpass'; filter.frequency.value = 900; filter.Q.value = 1;
+    const g = ctx.createGain();
+    this._pluck(g.gain, 0.5, 0.05, 0.45, time); // slow attack = brass-like swell-in
+    filter.connect(g); g.connect(this.bastionGain);
+    for (const detune of [-7, 7]) {
+      const o = ctx.createOscillator();
+      o.type = 'sawtooth'; o.detune.value = detune; o.frequency.value = noteFreq(root - 12);
+      o.connect(filter); o.start(time); o.stop(time + 0.55);
+    }
+  }
+
   // ---- Rez-style beat-grid quantization for player/enemy actions --------
 
   // Returns the AudioContext time of the next 16th-note boundary (plus
@@ -636,13 +860,14 @@ export class SynthwaveEngine {
     const time = this.quantize(1);
     const bar = Math.floor(this._stepIndexAt(time) / STEPS_PER_BAR);
     if (bar !== this._shootBar) { this._shootBar = bar; this._shootIndex = 0; }
-    const midi = PENTATONIC_SEQUENCE[this._shootIndex % PENTATONIC_SEQUENCE.length];
+    const seq = PENTATONIC_SEQUENCES[this._currentSection];
+    const midi = seq[this._shootIndex % seq.length];
     this._triggerPluck(midi, time, this._shootIndex++);
   }
 
   // Bright pluck: square+saw, fast decay, ping-pong-ish feedback delay at
-  // 3/16. Pitch walks up PENTATONIC_SEQUENCE — rapid fire = an ascending
-  // melody line locked to the grid.
+  // 3/16. Pitch walks up the current section's PENTATONIC_SEQUENCES entry —
+  // rapid fire = an ascending melody line locked to the grid and the key.
   _triggerPluck(midi, time, shotNumber) {
     const ctx = this.ctx;
     const freq = noteFreq(midi);
@@ -778,6 +1003,67 @@ export class SynthwaveEngine {
     src.start(time); src.stop(time + 0.17);
   }
 
+  // Immediate — a protective "whomp": filtered noise burst + sine
+  // pitch-drop + a short metallic ring. Distinct from playerHit (hull
+  // damage): rounder, lower, no dissonant stab — the shield absorbed it.
+  shieldHit() {
+    if (!this.ctx) return;
+    const ctx = this.ctx;
+    const time = ctx.currentTime + 0.001;
+
+    // Filtered noise burst — the "whomp" body.
+    const src = this._noiseSrc();
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 700; bp.Q.value = 0.9;
+    const ng = ctx.createGain();
+    ng.gain.setValueAtTime(0.55, time);
+    ng.gain.exponentialRampToValueAtTime(0.001, time + 0.22);
+    src.connect(bp); bp.connect(ng); ng.connect(this.sfxBus);
+    src.start(time); src.stop(time + 0.24);
+
+    // Sine pitch-drop — the protective thud underneath the noise.
+    const o = ctx.createOscillator();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(520, time);
+    o.frequency.exponentialRampToValueAtTime(110, time + 0.2);
+    const og = ctx.createGain();
+    this._pluck(og.gain, 0.5, 0.004, 0.22, time);
+    o.connect(og); og.connect(this.sfxBus);
+    o.start(time); o.stop(time + 0.24);
+
+    // Short metallic ring — a few detuned high partials, fast decay.
+    const ringBp = ctx.createBiquadFilter(); ringBp.type = 'bandpass'; ringBp.frequency.value = 2400; ringBp.Q.value = 6;
+    const rg = ctx.createGain();
+    this._pluck(rg.gain, 0.3, 0.002, 0.16, time);
+    ringBp.connect(rg); rg.connect(this.sfxBus);
+    for (const ratio of [1, 1.8, 2.6]) {
+      const ro = ctx.createOscillator(); ro.type = 'triangle'; ro.frequency.value = 1200 * ratio;
+      ro.connect(ringBp); ro.start(time); ro.stop(time + 0.18);
+    }
+  }
+
+  // Quantized to the next beat — "systems back online": a soft rising
+  // two-note confirmation (sine, in-key) with a short delay tail.
+  shieldUp() {
+    if (!this.ctx) return;
+    const ctx = this.ctx;
+    const t0 = this._nextGridTime(4, 0); // next beat
+
+    const delay = ctx.createDelay(1.0);
+    delay.delayTime.value = SECONDS_PER_16TH * 3;
+    const fb = this._gain(ctx, 0.3, delay);
+    const wet = this._gain(ctx, 0.32, this.sfxBus);
+    delay.connect(fb); delay.connect(wet);
+
+    [71, 76].forEach((midi, i) => { // B4 -> E5, rising fourth, in E minor
+      const t = t0 + i * SECONDS_PER_16TH * 2;
+      const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = noteFreq(midi);
+      const g = ctx.createGain();
+      this._pluck(g.gain, 0.35, 0.015, 0.3, t);
+      o.connect(g); g.connect(this.sfxBus); g.connect(delay);
+      o.start(t); o.stop(t + 0.34);
+    });
+  }
+
   // Filtered-noise + saw riser rising over ~700ms at the next beat. Repeated
   // calls with the same value are ignored; the voice is tracked for release.
   boost(on) {
@@ -876,7 +1162,7 @@ export class SynthwaveEngine {
     // Music layers ramp out under the sting.
     this._pendingIntensity = 0;
     this._currentIntensity = 0;
-    for (const layer of [this.padGain, this.pulseGain, this.kickGain, this.percGain, this.riffGain, this.stabGain, this.fxGain, this.shimmerGain]) {
+    for (const layer of [this.padGain, this.pulseGain, this.kickGain, this.percGain, this.riffGain, this.stabGain, this.fxGain, this.shimmerGain, this.shardGain, this.seekerGain, this.bastionGain]) {
       layer.gain.cancelScheduledValues(time);
       layer.gain.setValueAtTime(layer.gain.value, time);
       layer.gain.linearRampToValueAtTime(0, time + 1.6);
