@@ -64,14 +64,17 @@ const RIFF_BARS = CHORD_ROOTS.map((root, i) => ({ root: root + 12, cells: RIFF_C
 const PENTATONIC_SEQUENCE = [64, 67, 69, 71, 74, 76, 79, 81, 83, 86, 88, 91, 93, 95, 98, 100];
 
 // Per-layer target gain by intensity level [0, 1, 2, 3].
+// (pad/riff trimmed slightly vs. their pre-harmonics-enrichment levels to
+// leave headroom for the added unison/stack/shimmer partials below.)
 const LAYER_GAIN = {
-  pad: [0.55, 0.50, 0.45, 0.42],
+  pad: [0.50, 0.46, 0.42, 0.39],
   pulse: [0.55, 0, 0, 0],
   kick: [0, 0.90, 0.90, 0.90],
   perc: [0, 0.65, 0.70, 0.75], // hats + snare/clap share this bus
-  riff: [0, 0, 0.85, 0.80],
+  riff: [0, 0, 0.78, 0.74],
   stab: [0, 0, 0, 0.55],
   fx: [0, 0, 0, 0.70],        // riser + crash
+  shimmer: [0, 0, dbToGain(-20), dbToGain(-20)], // high-register "air" doubling the riff, 2 8ves up
 };
 const INTENSITY_RAMP_SEC = 0.05; // "50ms gain ramps" applied at the bar boundary
 
@@ -121,7 +124,12 @@ export class SynthwaveEngine {
     this._boostVoice = null;
 
     // Static waveshaper curves — pure data, no ctx needed, build once.
-    this._driveCurve = makeDriveCurve(18);
+    // (drive deepened slightly from the original 18 — more odd-harmonic bite
+    // on the riff/stab/hit voices that already route through it.)
+    this._driveCurve = makeDriveCurve(22);
+    // Very gentle bus-level saturation for the pump bus (pad+riff+pulse+
+    // shimmer) — low drive so it reads as warmth, not fuzz.
+    this._padDriveCurve = makeDriveCurve(5);
     this._crushCurve = makeCrushCurve(6);
   }
 
@@ -193,7 +201,19 @@ export class SynthwaveEngine {
 
     // THE PUMP: pads + arp/riff + sustained bass live here and get ducked on
     // every kick. Kick and lead SFX bypass this entirely.
-    this.pumpBus = this._gain(ctx, 1.0, this.musicBus);
+    // Gain trimmed slightly (was 1.0) — headroom for the harmonic layers
+    // added below (pad stack/bright, riff octave shadow, shimmer, bus drive).
+    this.pumpBus = this._gain(ctx, 0.92, null);
+
+    // Shared soft-saturation stage for the whole pump bus — a gentle tanh
+    // curve that adds harmonic content to the pad/riff/shimmer mix without
+    // turning into fuzz. This is the "subtle drive" bus the per-voice
+    // WaveShapers (riff/stab/hit) sit alongside.
+    this.pumpDrive = ctx.createWaveShaper();
+    this.pumpDrive.curve = this._padDriveCurve;
+    this.pumpDrive.oversample = '2x';
+    this.pumpBus.connect(this.pumpDrive);
+    this.pumpDrive.connect(this.musicBus);
 
     this.padGain = this._gain(ctx, 0, this.pumpBus);
     this.riffGain = this._gain(ctx, 0, this.pumpBus);
@@ -202,6 +222,16 @@ export class SynthwaveEngine {
     this.percGain = this._gain(ctx, 0, this.musicBus);
     this.stabGain = this._gain(ctx, 0, this.musicBus);
     this.fxGain = this._gain(ctx, 0, this.musicBus);
+
+    // Shimmer/air bus: a very quiet high-register layer that doubles the riff
+    // two octaves up (see _triggerShimmerNote). Runs through its own short
+    // feedback delay for a bit of "sparkle trail", then joins the pump bus.
+    this.shimmerGain = this._gain(ctx, 0, this.pumpBus);
+    this.shimmerDelay = ctx.createDelay(1.0);
+    this.shimmerDelay.delayTime.value = SECONDS_PER_16TH * 3;
+    const shimmerFeedback = this._gain(ctx, 0.25, this.shimmerDelay);
+    this.shimmerDelay.connect(shimmerFeedback);
+    this.shimmerDelay.connect(this.shimmerGain);
 
     // Shared white-noise buffer for hats/snare/riser/crash/explosions.
     const len = Math.floor(ctx.sampleRate * 2);
@@ -228,10 +258,25 @@ export class SynthwaveEngine {
     filter.connect(this.padGain);
 
     const rootFreq = noteFreq(CHORD_ROOTS[0]);
-    this.padOscs = [-11, 0, 11].map((detune) => {
+
+    // Slow chorus LFO — nudges the outer unison voices a few cents so the
+    // pad breathes instead of sitting perfectly static.
+    this.padChorusLfo = ctx.createOscillator();
+    this.padChorusLfo.type = 'sine';
+    this.padChorusLfo.frequency.value = 0.17; // 0.1-0.3Hz chorus rate
+    const chorusDepth = this._gain(ctx, 5, null); // +/-5 cents
+    this.padChorusLfo.connect(chorusDepth);
+    this.padChorusLfo.start();
+
+    // Core unison — spread and panned slightly for width.
+    const panPositions = [-0.22, 0, 0.22];
+    this.padOscs = [-11, 0, 11].map((detune, i) => {
       const o = ctx.createOscillator();
       o.type = 'sawtooth'; o.frequency.value = rootFreq; o.detune.value = detune;
-      o.connect(filter); o.start();
+      const pan = ctx.createStereoPanner(); pan.pan.value = panPositions[i];
+      o.connect(pan); pan.connect(filter);
+      if (i !== 1) chorusDepth.connect(o.detune); // outer voices only; keep a stable center anchor
+      o.start();
       return o;
     });
 
@@ -239,6 +284,33 @@ export class SynthwaveEngine {
     this.padSub.type = 'sine';
     this.padSub.frequency.value = noteFreq(CHORD_ROOTS[0] - 12);
     this.padSub.connect(filter); this.padSub.start();
+
+    // Quiet fifth + octave-up partials (-12dB) so the pad voices a full
+    // root-fifth-octave triad instead of a bare unison drone.
+    const stackGain = this._gain(ctx, dbToGain(-12), filter);
+    const stackPan = [-0.3, 0.3];
+    this.padStackOscs = [7, 24].map((interval, i) => {
+      const o = ctx.createOscillator();
+      o.type = 'sawtooth';
+      o.frequency.value = noteFreq(CHORD_ROOTS[0] + interval);
+      o.detune.value = i === 0 ? -6 : 6;
+      const pan = ctx.createStereoPanner(); pan.pan.value = stackPan[i];
+      o.connect(pan); pan.connect(stackGain);
+      o.start();
+      return o;
+    });
+
+    // Bright shadow: a quiet square blended in through its own gentle lowpass
+    // so the pad carries upper harmonics beyond the saws' natural rolloff,
+    // without harshing the overall tone.
+    const brightFilter = ctx.createBiquadFilter();
+    brightFilter.type = 'lowpass'; brightFilter.frequency.value = 2600; brightFilter.Q.value = 0.4;
+    const brightGain = this._gain(ctx, dbToGain(-14), this.padGain);
+    this.padBright = ctx.createOscillator();
+    this.padBright.type = 'square';
+    this.padBright.frequency.value = rootFreq;
+    this.padBright.connect(brightFilter); brightFilter.connect(brightGain);
+    this.padBright.start();
 
     // Slow LFO breathing the filter cutoff — ominous, "Grid-idle" drift.
     this.padLfo = ctx.createOscillator();
@@ -252,6 +324,11 @@ export class SynthwaveEngine {
   _updatePadChord(rootMidi, time) {
     for (const o of this.padOscs) o.frequency.setTargetAtTime(noteFreq(rootMidi), time, 0.15);
     this.padSub.frequency.setTargetAtTime(noteFreq(rootMidi - 12), time, 0.15);
+    if (this.padStackOscs) {
+      const intervals = [7, 24];
+      this.padStackOscs.forEach((o, i) => o.frequency.setTargetAtTime(noteFreq(rootMidi + intervals[i]), time, 0.15));
+    }
+    if (this.padBright) this.padBright.frequency.setTargetAtTime(noteFreq(rootMidi), time, 0.15);
   }
 
   // ---- Transport / lookahead scheduler ("A Tale of Two Clocks") ---------
@@ -338,6 +415,7 @@ export class SynthwaveEngine {
     this._rampGain(this.riffGain, LAYER_GAIN.riff[lvl], time);
     this._rampGain(this.stabGain, LAYER_GAIN.stab[lvl], time);
     this._rampGain(this.fxGain, LAYER_GAIN.fx[lvl], time);
+    this._rampGain(this.shimmerGain, LAYER_GAIN.shimmer[lvl], time);
   }
 
   _rampGain(node, target, time, ramp = INTENSITY_RAMP_SEC) {
@@ -402,6 +480,17 @@ export class SynthwaveEngine {
     const g = ctx.createGain();
     this._pluck(g.gain, 0.8, 0.02, 0.88, time);
     o.connect(g); g.connect(this.pulseGain);
+
+    // Quiet saw partner, tamed by its own lowpass — adds harmonic content to
+    // the drone without turning the sub pulse into a buzz.
+    const saw = ctx.createOscillator();
+    saw.type = 'sawtooth'; saw.frequency.value = noteFreq(midi);
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 900; lp.Q.value = 0.5;
+    const sg = ctx.createGain();
+    this._pluck(sg.gain, 0.8 * dbToGain(-12), 0.02, 0.88, time);
+    saw.connect(lp); lp.connect(sg); sg.connect(this.pulseGain);
+    saw.start(time); saw.stop(time + 0.95);
+
     o.start(time); o.stop(time + 0.95);
   }
 
@@ -432,7 +521,12 @@ export class SynthwaveEngine {
   _triggerRiffStep(phraseBar, step, time) {
     const barDef = RIFF_BARS[phraseBar];
     const cell = step < 8 ? barDef.cells[0] : barDef.cells[1];
-    this._triggerRiffNote(barDef.root + cell[step % 8], time, SECONDS_PER_16TH * 0.9);
+    const midi = barDef.root + cell[step % 8];
+    const dur = SECONDS_PER_16TH * 0.9;
+    this._triggerRiffNote(midi, time, dur);
+    // Shimmer/air: a very quiet 16th-note double of the riff, two octaves up.
+    // Reads as sparkle, not a second melody — see LAYER_GAIN.shimmer.
+    this._triggerShimmerNote(midi + 24, time, dur);
   }
 
   // Aggressive detuned saw through a WaveShaper (mild tanh drive) and a
@@ -452,6 +546,32 @@ export class SynthwaveEngine {
     o1.connect(shaper); o2.connect(shaper); shaper.connect(filter); filter.connect(g); g.connect(this.riffGain);
     o1.start(time); o2.start(time);
     o1.stop(time + dur + 0.02); o2.stop(time + dur + 0.02);
+
+    // Quiet +1 octave shadow — adds a little extra bite/air above the
+    // fundamental without thickening the core unison pair.
+    const o3 = ctx.createOscillator(); o3.type = 'sawtooth'; o3.frequency.value = freq * 2;
+    const shadowFilter = ctx.createBiquadFilter();
+    shadowFilter.type = 'lowpass'; shadowFilter.frequency.value = 3200; shadowFilter.Q.value = 0.5;
+    const shadowGain = ctx.createGain();
+    this._pluck(shadowGain.gain, 0.85 * dbToGain(-12), 0.006, dur - 0.006, time);
+    o3.connect(shadowFilter); shadowFilter.connect(shadowGain); shadowGain.connect(this.riffGain);
+    o3.start(time); o3.stop(time + dur + 0.02);
+  }
+
+  // High-register sparkle layer doubling a note two octaves up through a
+  // highpass and the shimmer bus's short feedback delay — reads as air, not
+  // a new melody line.
+  _triggerShimmerNote(midi, time, dur) {
+    const ctx = this.ctx;
+    const o = ctx.createOscillator();
+    o.type = 'sine'; o.frequency.value = noteFreq(midi);
+    const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 3500;
+    const g = ctx.createGain();
+    this._pluck(g.gain, dbToGain(-20), 0.003, dur * 0.8, time);
+    o.connect(hp); hp.connect(g);
+    g.connect(this.shimmerGain);
+    g.connect(this.shimmerDelay);
+    o.start(time); o.stop(time + dur + 0.05);
   }
 
   _triggerStab(rootMidi, time) {
@@ -716,8 +836,17 @@ export class SynthwaveEngine {
       const g = ctx.createGain();
       this._pluck(g.gain, 0.4, 0.01, 0.34, t);
       o1.connect(g); o2.connect(g); g.connect(this.sfxBus); g.connect(delay);
-      o1.start(t); o2.start(t);
-      o1.stop(t + 0.4); o2.stop(t + 0.4);
+
+      // Quiet saw brightness partner (octave up), through its own lowpass —
+      // extra harmonic sparkle on the triumphant lift without harshness.
+      const o3 = ctx.createOscillator(); o3.type = 'sawtooth'; o3.frequency.value = noteFreq(midi) * 2;
+      const brightLp = ctx.createBiquadFilter(); brightLp.type = 'lowpass'; brightLp.frequency.value = 5000; brightLp.Q.value = 0.4;
+      const g3 = ctx.createGain();
+      this._pluck(g3.gain, 0.4 * dbToGain(-14), 0.01, 0.34, t);
+      o3.connect(brightLp); brightLp.connect(g3); g3.connect(this.sfxBus); g3.connect(delay);
+
+      o1.start(t); o2.start(t); o3.start(t);
+      o1.stop(t + 0.4); o2.stop(t + 0.4); o3.stop(t + 0.4);
     });
   }
 
@@ -747,7 +876,7 @@ export class SynthwaveEngine {
     // Music layers ramp out under the sting.
     this._pendingIntensity = 0;
     this._currentIntensity = 0;
-    for (const layer of [this.padGain, this.pulseGain, this.kickGain, this.percGain, this.riffGain, this.stabGain, this.fxGain]) {
+    for (const layer of [this.padGain, this.pulseGain, this.kickGain, this.percGain, this.riffGain, this.stabGain, this.fxGain, this.shimmerGain]) {
       layer.gain.cancelScheduledValues(time);
       layer.gain.setValueAtTime(layer.gain.value, time);
       layer.gain.linearRampToValueAtTime(0, time + 1.6);

@@ -171,6 +171,7 @@ function endGame(won) {
 		hud.showVictory(score, elapsed, restart);
 	} else {
 		state = State.GAMEOVER;
+		hud.setPings([]);
 		fx.spawnExplosion(ship.position, Colors.cyan, 3);
 		music.explosion(true);
 		music.gameOverSting();
@@ -233,9 +234,9 @@ function updatePlaying(dt) {
 	hud.setSpeed(ship.speed);
 	hud.setBoost(ship.boost / CONFIG.boostMax);
 	hud.setProgress(p);
-	hud.setCrosshair(input.mousePxX, input.mousePxY);
 	if (weapons.lockState === 'none') hud.hideLock();
 	else hud.setLock(weapons.lockPx.x, weapons.lockPx.y, weapons.lockState === 'locked');
+	updatePings();
 
 	if (p >= 1) endGame(true);
 }
@@ -255,6 +256,36 @@ function updateIdle(dt) {
 
 function progress() {
 	return Math.min(1, ship.progressZ / CONFIG.courseLength);
+}
+
+// radar pings: project every hostile to the screen; clamp off-screen (or
+// behind-camera) contacts to the edge with a chevron pointing their way
+const _pingV = new THREE.Vector3();
+const _pings = [];
+function updatePings() {
+	_pings.length = 0;
+	const w = window.innerWidth, h = window.innerHeight, m = 46;
+	for (const e of enemies.active) {
+		if (e === weapons.lockTarget) continue; // the lock reticle marks this one
+		_pingV.copy(e.position).project(camera);
+		const behind = _pingV.z > 1;
+		let sx = (_pingV.x * 0.5 + 0.5) * w;
+		let sy = (-_pingV.y * 0.5 + 0.5) * h;
+		if (behind) { sx = w - sx; sy = h - sy; }
+		const off = behind || sx < m || sx > w - m || sy < m || sy > h - m;
+		let angle = 0;
+		if (off) {
+			const dx = sx - w / 2, dy = sy - h / 2;
+			angle = Math.atan2(dy, dx);
+			const k = Math.min((w / 2 - m) / Math.max(1e-6, Math.abs(dx)),
+				(h / 2 - m) / Math.max(1e-6, Math.abs(dy)));
+			sx = w / 2 + dx * k;
+			sy = h / 2 + dy * k;
+		}
+		_pings.push({ x: sx, y: sy, off, angle });
+		if (_pings.length >= 12) break;
+	}
+	hud.setPings(_pings);
 }
 
 const _sunDir = new THREE.Vector3(-2600, -350, -4400);

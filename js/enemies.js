@@ -52,7 +52,7 @@ export class EnemyManager {
 		const group = new THREE.Group();
 		const body = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({
 			color: 0x12081f, roughness: 0.4, metalness: 0.6, flatShading: true,
-			emissive: def.color, emissiveIntensity: 0.35,
+			emissive: def.color, emissiveIntensity: 0.6,
 		}));
 		const edges = new THREE.LineSegments(
 			new THREE.EdgesGeometry(geo),
@@ -90,7 +90,7 @@ export class EnemyManager {
 			if (!e.alive) continue;
 			e.phase += dt;
 			e.glow = Math.max(0, e.glow - dt * 5);
-			e.body.material.emissiveIntensity = 0.35 + e.glow * 1.4;
+			e.body.material.emissiveIntensity = 0.6 + e.glow * 1.4;
 			e.group.rotation.y += dt * 0.8;
 			e.group.rotation.x += dt * 0.35;
 

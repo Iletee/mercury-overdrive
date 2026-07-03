@@ -68,20 +68,29 @@ html, body {
 
 .mo-corner,
 .mo-progress,
-.mo-crosshair,
-.mo-lock,
 .mo-wave {
 	opacity: 0;
 	transform: translateY(6px);
 	transition: opacity 0.6s ease, transform 0.6s ease;
 }
 
+/* crosshair + lock are repositioned via transform every frame — a transform
+   transition here would make them trail the mouse. Fade opacity only. */
+.mo-crosshair,
+.mo-lock {
+	opacity: 0;
+	transition: opacity 0.6s ease;
+}
+
 .mo-hud--live .mo-corner,
-.mo-hud--live .mo-progress,
+.mo-hud--live .mo-progress {
+	opacity: 1;
+	transform: translateY(0);
+}
+
 .mo-hud--live .mo-crosshair,
 .mo-hud--live .mo-lock {
 	opacity: 1;
-	transform: translateY(0);
 }
 
 .mo-hud--live .mo-wave {
@@ -481,6 +490,58 @@ html, body {
 .mo-lock--locked .mo-lock__corner--tr { top: 6px; right: 6px; }
 .mo-lock--locked .mo-lock__corner--bl { bottom: 6px; left: 6px; }
 .mo-lock--locked .mo-lock__corner--br { bottom: 6px; right: 6px; }
+
+/* ==========================================================================
+   Radar pings: diamond over visible hostiles, edge chevron for off-screen
+   ========================================================================== */
+
+.mo-ping {
+	position: fixed;
+	top: 0;
+	left: 0;
+	width: 34px;
+	height: 34px;
+	will-change: transform;
+}
+
+.mo-ping--hidden { display: none; }
+
+.mo-ping__d {
+	position: absolute;
+	inset: 8px;
+	border: 1.5px solid var(--pink);
+	transform: rotate(45deg);
+	opacity: 0.75;
+	box-shadow: 0 0 9px var(--pink-soft), inset 0 0 5px var(--pink-soft);
+	transition: box-shadow 0.12s ease, opacity 0.12s ease, transform 0.12s ease;
+}
+
+.mo-hud--beat .mo-ping__d {
+	opacity: 1;
+	transform: rotate(45deg) scale(1.35);
+	box-shadow: 0 0 16px var(--pink), inset 0 0 8px var(--pink-soft);
+}
+
+/* off-screen: hide the diamond, show a chevron pointing outward (the whole
+   ping element is rotated toward the target, chevron points along +x) */
+.mo-ping__a {
+	display: none;
+	position: absolute;
+	top: 50%;
+	right: 0;
+	width: 0;
+	height: 0;
+	border-top: 9px solid transparent;
+	border-bottom: 9px solid transparent;
+	border-left: 13px solid var(--pink);
+	transform: translateY(-50%);
+	filter: drop-shadow(0 0 7px var(--pink));
+	opacity: 0.9;
+}
+
+.mo-ping--off .mo-ping__d { display: none; }
+.mo-ping--off .mo-ping__a { display: block; }
+.mo-hud--beat .mo-ping--off .mo-ping__a { opacity: 1; filter: drop-shadow(0 0 12px var(--pink)); }
 
 /* ==========================================================================
    Wave announcement

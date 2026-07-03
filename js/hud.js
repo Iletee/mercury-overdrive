@@ -55,6 +55,7 @@ export class HUD {
 		this._buildProgress();
 		this._buildCrosshair();
 		this._buildLock();
+		this._buildPings();
 		this._buildWave();
 		this._buildTitle();
 		this._buildEndScreen();
@@ -65,6 +66,9 @@ export class HUD {
 
 		// sensible defaults so nothing is glued to the top-left corner
 		this.setCrosshair(window.innerWidth / 2, window.innerHeight / 2);
+		// crosshair chases the pointer from the event itself, not the render
+		// loop — zero added latency even when the GPU frame runs long
+		window.addEventListener('mousemove', (e) => this.setCrosshair(e.clientX, e.clientY));
 		this.setHull(1, 1);
 		this.setSpeed(0);
 		this.setScore(0);
@@ -162,6 +166,36 @@ export class HUD {
 		});
 		this.lockEl = lock;
 		this.rootEl.appendChild(lock);
+	}
+
+	_buildPings() {
+		// pooled radar markers: diamond over on-screen enemies, edge chevron
+		// pointing at off-screen ones
+		this._pingEls = [];
+		for (let i = 0; i < 12; i++) {
+			const ping = el('div', 'mo-ping mo-ping--hidden');
+			ping.appendChild(el('div', 'mo-ping__d'));
+			ping.appendChild(el('div', 'mo-ping__a'));
+			this.rootEl.appendChild(ping);
+			this._pingEls.push(ping);
+		}
+	}
+
+	// pings: [{x, y, off, angle}] — screen px; off = clamped to edge, angle
+	// (radians) points from screen centre toward the enemy
+	setPings(pings) {
+		for (let i = 0; i < this._pingEls.length; i++) {
+			const elp = this._pingEls[i];
+			const p = pings[i];
+			if (!p) {
+				if (!elp.classList.contains('mo-ping--hidden')) elp.classList.add('mo-ping--hidden');
+				continue;
+			}
+			elp.classList.remove('mo-ping--hidden');
+			elp.classList.toggle('mo-ping--off', !!p.off);
+			const rot = p.off ? ` rotate(${p.angle.toFixed(3)}rad)` : '';
+			elp.style.transform = `translate(-50%, -50%) translate3d(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px, 0)${rot}`;
+		}
 	}
 
 	_buildWave() {
