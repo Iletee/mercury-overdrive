@@ -1,19 +1,14 @@
 {
-  "name": "mercury-slipstream",
-  "version": "0.0.2",
-  "description": "Demo engine for a foolish concept",
+  "name": "mercury-overdrive",
+  "version": "1.0.0",
+  "description": "Mercury Overdrive - a Tron-styled meteorite gauntlet flying game",
   "main": "index.js",
   "dependencies": {
-    "howler": "^2.1.3",
     "node-static": "^0.7.11",
-    "postprocessing": "^6.13.5",
-    "three": "^0.116.1"
+    "three": "^0.165.0"
   },
-  "devDependencies": {},
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "install": "wget https://asdfihuhubsdfswedf45456213.s3.eu-west-2.amazonaws.com/assets.zip",
-    "postinstall": "unzip -o assets.zip",
     "start": "node index.js"
   },
   "author": "Ilkka Turunen",

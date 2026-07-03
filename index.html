@@ -1,27 +1,22 @@
 <!DOCTYPE html>
+<html lang="en">
 <head>
-    <meta charset = "UTF-8">
-    <title>Mercury Slipstream</title>
-    <link rel = "stylesheet"
-      type = "text/css"
-      href = "style/main.css" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mercury Overdrive</title>
+    <link rel="stylesheet" type="text/css" href="style/main.css" />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><polygon points='8,1 15,15 8,11 1,15' fill='%232de2e6'/></svg>">
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "./node_modules/three/build/three.module.js",
+            "three/addons/": "./node_modules/three/examples/jsm/"
+        }
+    }
+    </script>
 </head>
 <body>
-    <script type="module">
-        import * as mercury from './js/main.js';
-       
-    </script>
-    
-    <!-- <script type="text/javascript" src="js/main.js"></script> -->
-    <div id="title" class="visible">MERCURY SLIPSTREAM</div>
-    <div id="loading" class="visible">LOADING...</div>
-    <!-- <div id="starter">PRESS SPACE TO START</div> -->
-
-    <div id="world" ></div>
-   
-    <div id="music"></div>
-    <div id="aiming">+</div>
- 
+    <div id="world"></div>
+    <script type="module" src="js/main.js"></script>
 </body>
 </html>
-
