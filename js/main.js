@@ -25,6 +25,11 @@ let state = State.TITLE;
 let score = 0;
 let elapsed = 0;
 let waveIndex = 0;
+let ringStreak = 0;
+let scoreMult = 1;
+let multTimer = 0;
+let prevShipZ = 0;
+let hitstop = 0; // brief time-dilation on kills — makes hits land
 
 // --- renderer / scene / camera -------------------------------------------
 const container = document.getElementById('world');
@@ -67,7 +72,19 @@ const fx = new FXSystem(scene, camera);
 const debris = new MicroDebris(scene);
 
 // --- event wiring ------------------------------------------------------------
-weapons.events.onShoot = () => music.playerShoot();
+// the ascending shot melody, made visible: each shot climbs the palette,
+// resetting every bar in step with the music engine's pentatonic run
+const SHOT_COLORS = [0x2de2e6, 0x4bd0f0, 0x7ab8ff, 0x9d8cff, 0xc76bff, 0xff5fd0, 0xff3864, 0xffffff];
+let shotIdx = 0;
+weapons.events.onShoot = () => {
+	music.playerShoot();
+	shotIdx = Math.min(shotIdx + 1, SHOT_COLORS.length - 1);
+	weapons.nextBoltColor = SHOT_COLORS[shotIdx];
+};
+music.onBar(() => {
+	shotIdx = 0;
+	weapons.nextBoltColor = SHOT_COLORS[0];
+});
 
 weapons.events.onLockChange = (lockState) => {
 	if (lockState === 'locked') music.lockOn();
@@ -78,6 +95,9 @@ weapons.events.onEnemyHit = (e, point) => {
 	if (enemies.damage(e, 1)) {
 		const big = e.type === 'bastion';
 		fx.spawnExplosion(e.position, e.color, big ? 3 : 1.5);
+		fx.spawnShockwave(e.position, e.color, big ? 3 : 1.3);
+		hitstop = big ? 0.1 : 0.06;
+		ship.shake(big ? 0.5 : 0.25);
 		music.explosion(big);
 		addScore(e.score);
 	}
@@ -87,8 +107,12 @@ weapons.events.onAsteroidHit = (rec, point) => {
 	fx.spawnHitSpark(point, Colors.cyan);
 	if (field.damage(rec, 1)) {
 		fx.spawnExplosion(rec.pos, Colors.orange, Math.max(1, rec.r / 18));
-		music.explosion(false);
-		addScore(CONFIG.scoreAsteroid);
+		if (rec.r > 55) {
+			fx.spawnShockwave(rec.pos, Colors.orange, Math.min(3, rec.r / 45));
+			hitstop = 0.05;
+		}
+		music.explosion(rec.r > 120);
+		addScore(Math.round(CONFIG.scoreAsteroid + rec.r * 2)); // big rocks pay big
 	}
 };
 
@@ -120,7 +144,7 @@ music.onBeat(({ beat, bar }) => {
 });
 
 function addScore(n) {
-	score += n;
+	score += n * scoreMult;
 	hud.setScore(score);
 }
 
@@ -163,6 +187,11 @@ function restart() {
 	score = 0;
 	elapsed = 0;
 	waveIndex = 0;
+	ringStreak = 0;
+	scoreMult = 1;
+	multTimer = 0;
+	prevShipZ = 0;
+	hud.setStreak(0, 1);
 	camera.position.set(0, 13, 46);
 	camera.quaternion.identity();
 	music.setIntensity(1);
@@ -223,13 +252,40 @@ function updatePlaying(dt) {
 		hurtPlayer();
 	}
 
-	// waves keyed to progress
+	// route rings: thread them for streak rewards, drift past one and it resets
+	const ringEvt = field.checkRings(prevShipZ, ship.position.z, ship.position.x, ship.position.y);
+	prevShipZ = ship.position.z;
+	if (ringEvt) {
+		if (ringEvt.type === 'hit') {
+			ringStreak += 1;
+			addScore(100);
+			if (music.ringChime) music.ringChime(ringStreak);
+			_ringPos.set(ringEvt.x, ringEvt.y, -ringEvt.p);
+			fx.spawnHitSpark(_ringPos, Colors.cyan);
+			if (ringStreak === 3) { ship.boost = CONFIG.boostMax; hud.showWave('BOOST RESTORED'); }
+			if (ringStreak === 6 && !ship.shieldReady) { ship.restoreShield(); hud.showWave('SHIELD RESTORED'); }
+			if (ringStreak >= 10) {
+				if (scoreMult === 1) hud.showWave('OVERDRIVE ×2');
+				scoreMult = 2;
+				multTimer = 20;
+			}
+		} else {
+			ringStreak = 0;
+		}
+		hud.setStreak(ringStreak, scoreMult);
+	}
+	if (multTimer > 0) {
+		multTimer -= dt;
+		if (multTimer <= 0) { scoreMult = 1; hud.setStreak(ringStreak, 1); }
+	}
+
+	// waves keyed to progress; clean flying earns an escort of bonus targets
 	const p = progress();
 	while (waveIndex < WAVES.length && p >= WAVES[waveIndex].at) {
 		const w = WAVES[waveIndex];
-		enemies.spawnWave(w);
+		const spec = ringStreak >= 6 ? { ...w, shards: (w.shards || 0) + 2 } : w;
+		enemies.spawnWave(spec);
 		if (w.text) hud.showWave(w.text);
-		music.setIntensity(Math.min(3, 1 + Math.floor(waveIndex / 2)));
 		waveIndex += 1;
 	}
 
@@ -239,8 +295,10 @@ function updatePlaying(dt) {
 
 	// HUD
 	// the soundtrack tracks the run: course thirds change the section, and
-	// live enemies each contribute their own motif layer
+	// live enemies each contribute their own motif layer. Intensity is
+	// front-loaded — the riff (the hook) arrives seconds in, not a minute
 	music.setSection(Math.min(2, Math.floor(p * 3)));
+	music.setIntensity(p > 0.35 ? 3 : (p > 0.015 ? 2 : 1));
 	_presence.shard = _presence.seeker = _presence.bastion = 0;
 	for (const e of enemies.active) _presence[e.type] += 1;
 	music.setPresence(_presence);
@@ -276,6 +334,7 @@ function progress() {
 // radar pings: project every hostile to the screen; clamp off-screen (or
 // behind-camera) contacts to the edge with a chevron pointing their way
 const _presence = { shard: 0, seeker: 0, bastion: 0 };
+const _ringPos = new THREE.Vector3();
 const _pingV = new THREE.Vector3();
 const _pings = [];
 function updatePings() {
@@ -309,7 +368,12 @@ const clock = new THREE.Clock();
 
 function loop() {
 	requestAnimationFrame(loop);
-	const dt = Math.min(clock.getDelta(), 0.05);
+	const rawDt = Math.min(clock.getDelta(), 0.05);
+	let dt = rawDt;
+	if (hitstop > 0) {
+		hitstop -= rawDt;
+		dt *= 0.15; // the world catches its breath on a kill
+	}
 	if (state === State.PLAYING) updatePlaying(dt);
 	else updateIdle(dt);
 	composer.render();
@@ -323,3 +387,6 @@ window.addEventListener('resize', () => {
 });
 
 loop();
+
+// debug handle for automated testing
+window.__mo = { field, ship, enemies, weapons };

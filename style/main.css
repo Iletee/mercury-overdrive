@@ -293,6 +293,30 @@ html, body {
 	animation: mo-shield-hum 1.1s ease-in-out infinite alternate;
 }
 
+.mo-streak {
+	position: absolute;
+	top: 100%;
+	left: 50%;
+	transform: translateX(-50%);
+	margin-top: 6px;
+	font-size: 11px;
+	letter-spacing: 0.22em;
+	color: var(--cyan);
+	text-shadow: 0 0 8px var(--cyan-soft);
+	white-space: nowrap;
+}
+
+.mo-streak--hot {
+	color: var(--pink);
+	text-shadow: 0 0 10px var(--pink);
+	animation: mo-streak-blink 0.5s ease-in-out infinite alternate;
+}
+
+@keyframes mo-streak-blink {
+	from { opacity: 0.75; }
+	to { opacity: 1; }
+}
+
 @keyframes mo-shield-hum {
 	from { box-shadow: 0 0 8px var(--cyan-soft); filter: brightness(1); }
 	to { box-shadow: 0 0 18px var(--cyan); filter: brightness(1.35); }

@@ -9,22 +9,30 @@ const PLAYER_CAP = 48;
 const ENEMY_CAP = 64;
 const Z_AXIS = new THREE.Vector3(0, 0, 1);
 
-function makeBoltMesh(colorHex, cap, len, rad) {
+function makeBoltMesh(colorHex, cap, len, rad, perInstanceColor) {
 	const geo = new THREE.CylinderGeometry(rad * 0.45, rad, len, 6, 1, true);
 	geo.rotateX(Math.PI / 2); // align along +Z so a unit-vector quat orients it
 	const mat = new THREE.MeshBasicMaterial({
-		color: colorHex, transparent: true, opacity: 0.95,
+		// with per-instance colors the material stays white (it multiplies)
+		color: perInstanceColor ? 0xffffff : colorHex, transparent: true, opacity: 0.95,
 		blending: THREE.AdditiveBlending, depthWrite: false,
 	});
 	const mesh = new THREE.InstancedMesh(geo, mat, cap);
 	mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+	if (perInstanceColor) {
+		const c = new THREE.Color(colorHex);
+		for (let i = 0; i < cap; i++) mesh.setColorAt(i, c);
+		mesh.instanceColor.needsUpdate = true;
+	}
 	mesh.frustumCulled = false;
 	return mesh;
 }
 
 class BoltPool {
-	constructor(scene, colorHex, cap, len, rad) {
-		this.mesh = makeBoltMesh(colorHex, cap, len, rad);
+	constructor(scene, colorHex, cap, len, rad, perInstanceColor = false) {
+		this.mesh = makeBoltMesh(colorHex, cap, len, rad, perInstanceColor);
+		this._tint = perInstanceColor ? new THREE.Color() : null;
+		this._colorDirty = false;
 		scene.add(this.mesh);
 		this.cap = cap;
 		this.bolts = Array.from({ length: cap }, (_, slot) => ({
@@ -40,7 +48,7 @@ class BoltPool {
 		this.mesh.instanceMatrix.needsUpdate = true;
 	}
 
-	spawn(pos, dir, target = null) {
+	spawn(pos, dir, target = null, colorHex = null) {
 		const b = this.bolts.find((x) => !x.active);
 		if (!b) return null;
 		b.active = true;
@@ -49,6 +57,11 @@ class BoltPool {
 		b.dir.copy(dir).normalize();
 		b.dist = 0;
 		b.target = target;
+		if (colorHex !== null && this._tint) {
+			this._tint.setHex(colorHex);
+			this.mesh.setColorAt(b.slot, this._tint);
+			this._colorDirty = true;
+		}
 		return b;
 	}
 
@@ -64,7 +77,13 @@ class BoltPool {
 		this.mesh.setMatrixAt(b.slot, this._m);
 	}
 
-	flush() { this.mesh.instanceMatrix.needsUpdate = true; }
+	flush() {
+		this.mesh.instanceMatrix.needsUpdate = true;
+		if (this._colorDirty) {
+			this.mesh.instanceColor.needsUpdate = true;
+			this._colorDirty = false;
+		}
+	}
 }
 
 export class WeaponSystem {
@@ -74,8 +93,11 @@ export class WeaponSystem {
 		this.ship = ship;
 		this.field = field;
 
-		this.player = new BoltPool(scene, Colors.cyan, PLAYER_CAP, 30, 1.6);
+		this.player = new BoltPool(scene, Colors.cyan, PLAYER_CAP, 30, 1.6, true);
 		this.enemy = new BoltPool(scene, Colors.orange, ENEMY_CAP, 22, 2.2);
+		// the melody made visible: main sets this to match the current note of
+		// the ascending shot sequence, so rapid fire climbs through the palette
+		this.nextBoltColor = Colors.cyan;
 
 		// wired by main after construction
 		this.events = {
@@ -146,7 +168,7 @@ export class WeaponSystem {
 		this._nose.multiplyScalar(20).add(this.ship.position);
 		this._steer.copy(this._aim).sub(this._nose).normalize();
 		const homing = this.lockState === 'locked' ? this.lockTarget : null;
-		this.player.spawn(this._nose, this._steer, homing);
+		this.player.spawn(this._nose, this._steer, homing, this.nextBoltColor);
 		this.events.onShoot();
 	}
 

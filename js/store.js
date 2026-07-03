@@ -30,6 +30,12 @@ export const CONFIG = {
 		{ start: 45000, end: 57000 },
 	],
 	routeRingSpacing: 1500,  // guidance rings along each corridor
+	// squeeze zones: the corridor narrows and fills with debris — thread it
+	squeezes: [
+		{ start: 22800, end: 26000 },
+		{ start: 40800, end: 44200 },
+	],
+	squeezeRadius: 235,
 
 	// Flight model (WASD steering; slewed input, bank leads the turn)
 	cruiseSpeed: 380,

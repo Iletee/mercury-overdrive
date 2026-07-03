@@ -192,6 +192,7 @@ export class PlayerShip {
 
 		// --- throttle
 		this.boostEngaged = input.boosting && this.boost > (this.boostEngaged ? 0 : 12);
+		this._braking = input.braking;
 		let targetSpeed = CONFIG.cruiseSpeed;
 		if (input.braking) targetSpeed = CONFIG.brakeSpeed;
 		if (this.boostEngaged) {
@@ -259,8 +260,8 @@ export class PlayerShip {
 			camera.position.y += (Math.random() - 0.5) * s;
 		}
 
-		// speed reads as FOV
-		const targetFov = 70 + (this.speed / CONFIG.boostSpeed) * 22;
+		// speed reads as FOV; braking narrows the view — a steadier gun platform
+		const targetFov = 70 + (this.speed / CONFIG.boostSpeed) * 22 - (this._braking ? 7 : 0);
 		camera.fov += (targetFov - camera.fov) * Math.min(1, dt * 4);
 		camera.updateProjectionMatrix();
 	}
@@ -285,6 +286,14 @@ export class PlayerShip {
 
 	nudgeOutOf(normal, depth) {
 		this.position.addScaledVector(normal, depth + 3);
+	}
+
+	restoreShield() {
+		if (this.shieldReady) return;
+		this.shieldReady = true;
+		this.shieldTimer = CONFIG.shieldRecharge;
+		this._bubbleFlash = 0.6;
+		if (this.onShieldUp) this.onShieldUp();
 	}
 
 	beatPulse() { this._beatKick = 1; }

@@ -103,6 +103,59 @@ const SECTIONS = SECTION_CHORD_ROOTS.map(chordRoots => ({
   riffBarsByVariant: RIFF_VARIANTS.map(variant => buildRiffBars(chordRoots, variant)),
 }));
 
+// ---------------------------------------------------------------------------
+// Lead melody — real 8-bar phrases, one per section (task: "make it sing").
+// Each entry is [startStep, lengthSteps, midi, isPeak] where startStep is a
+// 0-127 offset within the 8-bar phrase (16 steps/bar x 8 bars). Mixed note
+// lengths (dotted quarters = 6 steps, quarters = 4, halves = 8, whole notes
+// = 16 that land on phrase ends) replace wall-to-wall 16ths. Bars 0-3 are the
+// "question", bars 4-7 the "answer" (a clear contour rise + one peak note),
+// with passing/neighbor tones against the chord loop. Register rises across
+// sections: S0 mid, S1 higher, S2 high and heroic (peak climbs B4->B5->G6).
+const MELODY_PHRASE_S0 = [
+  [0, 6, 71, false], [6, 4, 74, false], [10, 6, 76, false],
+  [16, 8, 74, false], [24, 8, 71, false],
+  [32, 6, 74, false], [38, 4, 76, false], [42, 2, 74, false], [44, 4, 71, false],
+  [48, 16, 76, false],
+  [64, 6, 79, false], [70, 4, 76, false], [74, 6, 74, false],
+  [80, 8, 71, false], [88, 8, 74, false],
+  [96, 6, 76, false], [102, 4, 79, true], [106, 6, 76, false],
+  [112, 16, 71, false],
+];
+const MELODY_PHRASE_S1 = [
+  [0, 6, 74, false], [6, 4, 76, false], [10, 6, 79, false],
+  [16, 8, 76, false], [24, 8, 74, false],
+  [32, 6, 76, false], [38, 4, 79, false], [42, 2, 76, false], [44, 4, 74, false],
+  [48, 16, 79, false],
+  [64, 6, 83, false], [70, 4, 79, false], [74, 6, 76, false],
+  [80, 8, 74, false], [88, 8, 76, false],
+  [96, 6, 79, false], [102, 4, 83, true], [106, 6, 79, false],
+  [112, 16, 74, false],
+];
+const MELODY_PHRASE_S2 = [
+  [0, 6, 79, false], [6, 4, 81, false], [10, 6, 83, false],
+  [16, 8, 81, false], [24, 8, 79, false],
+  [32, 6, 83, false], [38, 4, 86, false], [42, 2, 83, false], [44, 4, 81, false],
+  [48, 16, 88, false],
+  [64, 6, 91, false], [70, 4, 88, false], [74, 6, 86, false],
+  [80, 8, 83, false], [88, 8, 86, false],
+  [96, 6, 88, false], [102, 4, 91, true], [106, 6, 88, false],
+  [112, 16, 83, false],
+];
+// Precomputed startStep -> note lookup per section, so the scheduler can
+// check "is there a melody note at this step" in O(1) — see _scheduleStep.
+function buildMelodyLookup(phrase) {
+  const map = new Map();
+  for (const [step, dur, midi, peak] of phrase) map.set(step, { dur, midi, peak });
+  return map;
+}
+const MELODY_LOOKUP = [MELODY_PHRASE_S0, MELODY_PHRASE_S1, MELODY_PHRASE_S2].map(buildMelodyLookup);
+
+// Drum fill: a descending pitched tom hit on each of these steps, in the last
+// bar of every 8-bar phrase (intensity 2+) — see _triggerTomHit.
+const TOM_FILL_STEPS = [8, 10, 12, 14];
+const TOM_FILL_NOTES = [57, 53, 50, 45]; // A3 F3 D3 A2, descending
+
 // Rez-style ascending E-minor-pentatonic sequences for playerShoot(), one per
 // section so the shot melody always resonates with whichever chord/section
 // is currently playing. All three walk the same E-minor-pentatonic pitch
@@ -129,6 +182,7 @@ const LAYER_GAIN = {
   stab: [0, 0, 0, 0.55],
   fx: [0, 0, 0, 0.70],        // riser + crash
   shimmer: [0, 0, dbToGain(-20), dbToGain(-20)], // high-register "air" doubling the riff, 2 8ves up
+  lead: [0, 0, 0.54, 0.60],   // the melody voice, only at intensity 2+ — see _triggerLeadNote
 };
 const INTENSITY_RAMP_SEC = 0.05; // "50ms gain ramps" applied at the bar boundary
 
@@ -195,6 +249,12 @@ export class SynthwaveEngine {
     this._shootIndex = 0;
     this._shootBar = -1;
 
+    // Lead melody voice state (task 1) — set at bar 0 of each 8-bar phrase;
+    // _leadPrevMidi drives note-to-note portamento and is reset at every
+    // phrase boundary so a returning melody never glides in from a stale pitch.
+    this._melodyActive = false;
+    this._leadPrevMidi = null;
+
     // Stateful SFX voices.
     this._boostOn = false;
     this._boostVoice = null;
@@ -207,6 +267,9 @@ export class SynthwaveEngine {
     // shimmer) — just enough to round the mix, not add fuzz.
     this._padDriveCurve = makeDriveCurve(3);
     this._crushCurve = makeCrushCurve(6);
+    // Gentler than the riff's drive (13) — the lead supersaw wants a soft
+    // rounding, not grit.
+    this._leadDriveCurve = makeDriveCurve(6);
   }
 
   // ---- Lifecycle ------------------------------------------------------
@@ -330,6 +393,32 @@ export class SynthwaveEngine {
     this.shimmerDelay.connect(shimmerFeedback);
     this.shimmerDelay.connect(this.shimmerGain);
 
+    // Lead melody bus (task 1/2) — the supersaw voice, ducked by the pump
+    // like everything else in it. Two sends: a short rhythmic delay (same
+    // pattern as the shimmer/shard sends above) and a small feedback-delay
+    // diffusion network that stands in for a "gated reverb-ish" tail — see
+    // _triggerLeadNote, which snaps leadGateGain shut per note for the '80s
+    // gate character.
+    this.leadGain = this._gain(ctx, 0, this.pumpBus);
+
+    this.leadDelay = ctx.createDelay(1.0);
+    this.leadDelay.delayTime.value = SECONDS_PER_16TH * 3;
+    const leadDelayFeedback = this._gain(ctx, 0.3, this.leadDelay);
+    this.leadDelay.connect(leadDelayFeedback);
+    this.leadDelay.connect(this.leadGain);
+
+    this.leadDiffuseIn = ctx.createGain();
+    this.leadDiffuseIn.gain.value = 1;
+    this.leadGateGain = this._gain(ctx, 0, this.leadGain);
+    for (const dt of [0.011, 0.017, 0.023]) {
+      const d = ctx.createDelay(0.05);
+      d.delayTime.value = dt;
+      const fb = this._gain(ctx, 0.32, d);
+      this.leadDiffuseIn.connect(d);
+      d.connect(fb);
+      d.connect(this.leadGateGain);
+    }
+
     // Enemy-presence motif layers (shard/seeker/bastion) — quiet, distinct,
     // routed through the pump bus so they duck with every kick like the
     // rest of the mix.
@@ -424,6 +513,25 @@ export class SynthwaveEngine {
     this.padBright.connect(brightFilter); brightFilter.connect(brightGain);
     this.padBright.start();
 
+    // PWM character (task 2): two squares, one slowly detuned against the
+    // other, beating against each other for that classic synthwave
+    // pulse-width-ish movement. Blended in quietly through its own filter —
+    // darker by default, opens up for section 2 (see _updatePadChord).
+    this.padPwmFilter = ctx.createBiquadFilter();
+    this.padPwmFilter.type = 'lowpass'; this.padPwmFilter.frequency.value = 480; this.padPwmFilter.Q.value = 0.6;
+    const pwmGain = this._gain(ctx, dbToGain(-16), this.padGain);
+    this.padPwmFilter.connect(pwmGain);
+    this.padPwmA = ctx.createOscillator();
+    this.padPwmA.type = 'square'; this.padPwmA.frequency.value = rootFreq;
+    this.padPwmB = ctx.createOscillator();
+    this.padPwmB.type = 'square'; this.padPwmB.frequency.value = rootFreq; this.padPwmB.detune.value = 6;
+    this.padPwmLfo = ctx.createOscillator();
+    this.padPwmLfo.type = 'sine'; this.padPwmLfo.frequency.value = 0.12; // slow detune wobble
+    const pwmLfoDepth = this._gain(ctx, 9, null); // +/-9 cents
+    this.padPwmLfo.connect(pwmLfoDepth); pwmLfoDepth.connect(this.padPwmB.detune);
+    this.padPwmA.connect(this.padPwmFilter); this.padPwmB.connect(this.padPwmFilter);
+    this.padPwmA.start(); this.padPwmB.start(); this.padPwmLfo.start();
+
     // Slow LFO breathing the filter cutoff — ominous, "Grid-idle" drift.
     this.padLfo = ctx.createOscillator();
     this.padLfo.type = 'sine';
@@ -441,6 +549,15 @@ export class SynthwaveEngine {
       this.padStackOscs.forEach((o, i) => o.frequency.setTargetAtTime(noteFreq(rootMidi + intervals[i]), time, 0.15));
     }
     if (this.padBright) this.padBright.frequency.setTargetAtTime(noteFreq(rootMidi), time, 0.15);
+    if (this.padPwmA && this.padPwmB) {
+      this.padPwmA.frequency.setTargetAtTime(noteFreq(rootMidi), time, 0.15);
+      this.padPwmB.frequency.setTargetAtTime(noteFreq(rootMidi), time, 0.15);
+    }
+    if (this.padPwmFilter) {
+      // Darker for S0/S1, opens up for section 2 — a brighter, more heroic pad.
+      const cutoff = this._currentSection >= 2 ? 1500 : 480;
+      this.padPwmFilter.frequency.setTargetAtTime(cutoff, time, 0.4);
+    }
   }
 
   // ---- Transport / lookahead scheduler ("A Tale of Two Clocks") ---------
@@ -492,15 +609,20 @@ export class SynthwaveEngine {
   // Every step of the 16th-note grid gets a chance to trigger a layer.
   _scheduleStep(step, bar, time) {
     const phraseBar = bar % BARS_PER_PHRASE;
+    const phraseIndex = Math.floor(bar / BARS_PER_PHRASE);
 
     if (step === 0) {
       this._currentIntensity = this._pendingIntensity;
       this._currentSection = this._pendingSection;
       // Rotate riff variant every phrase (8 bars) so the loop never repeats
       // identically twice in a row; each section reuses the same 3 variants.
-      const variantIndex = Math.floor(bar / BARS_PER_PHRASE) % RIFF_VARIANTS.length;
+      const variantIndex = phraseIndex % RIFF_VARIANTS.length;
       this._activeChordRoots = SECTIONS[this._currentSection].chordRoots;
       this._activeRiffBars = SECTIONS[this._currentSection].riffBarsByVariant[variantIndex];
+      // Lead melody (task 1): plays on odd phrases only, rests on even ones
+      // so its return reads as an event — see MELODY_PHRASE_* above.
+      this._melodyActive = this._currentIntensity >= 2 && (phraseIndex % 2 === 1);
+      if (phraseBar === 0) this._leadPrevMidi = null; // fresh phrase: no stale portamento
       this._applyIntensityGains(time);
       this._applyPresenceGains(time);
       this._updatePadChord(this._activeChordRoots[phraseBar], time);
@@ -522,8 +644,17 @@ export class SynthwaveEngine {
     if (lvl >= 1 && (step === 4 || step === 12)) this._triggerSnare(time);
     if (lvl >= 1 && (step === 2 || step === 6 || step === 10 || step === 14)) this._triggerHat(time, true);
 
-    // Level 2+: the Derezzed riff.
+    // Level 2+: the Derezzed riff, the lead melody on odd phrases, and a
+    // descending tom fill in the last bar of every 8-bar phrase.
     if (lvl >= 2) this._triggerRiffStep(phraseBar, step, time);
+    if (this._melodyActive) {
+      const note = MELODY_LOOKUP[this._currentSection].get(phraseBar * STEPS_PER_BAR + step);
+      if (note) this._triggerLeadNote(note.midi, time, note.dur * SECONDS_PER_16TH, note.peak);
+    }
+    if (lvl >= 2 && phraseBar === BARS_PER_PHRASE - 1) {
+      const fillIdx = TOM_FILL_STEPS.indexOf(step);
+      if (fillIdx !== -1) this._triggerTomHit(fillIdx, time);
+    }
 
     // Level 3+: 16th closed hats, accent stabs, riser into the phrase turn.
     if (lvl >= 3) this._triggerHat(time, false);
@@ -547,14 +678,20 @@ export class SynthwaveEngine {
 
   _applyIntensityGains(time) {
     const lvl = this._currentIntensity;
-    this._rampGain(this.padGain, LAYER_GAIN.pad[lvl], time);
+    // Pads get a slower ~0.4s attack (task 2) rather than the snappy 50ms
+    // used everywhere else — a synth-pad swell-in instead of a jump.
+    this._rampGain(this.padGain, LAYER_GAIN.pad[lvl], time, 0.4);
     this._rampGain(this.pulseGain, LAYER_GAIN.pulse[lvl], time);
     this._rampGain(this.kickGain, LAYER_GAIN.kick[lvl], time);
     this._rampGain(this.percGain, LAYER_GAIN.perc[lvl], time);
-    this._rampGain(this.riffGain, LAYER_GAIN.riff[lvl], time);
+    // Riff drops ~3dB whenever the lead melody is active this phrase, so the
+    // lead sits clearly above it instead of the two fighting for space.
+    const riffTarget = LAYER_GAIN.riff[lvl] * (this._melodyActive ? dbToGain(-3) : 1);
+    this._rampGain(this.riffGain, riffTarget, time);
     this._rampGain(this.stabGain, LAYER_GAIN.stab[lvl], time);
     this._rampGain(this.fxGain, LAYER_GAIN.fx[lvl], time);
     this._rampGain(this.shimmerGain, LAYER_GAIN.shimmer[lvl], time);
+    this._rampGain(this.leadGain, LAYER_GAIN.lead[lvl], time);
   }
 
   _rampGain(node, target, time, ramp = INTENSITY_RAMP_SEC) {
@@ -646,6 +783,10 @@ export class SynthwaveEngine {
     o.start(time); o.stop(time + 0.95);
   }
 
+  // Synthwave gated-reverb snare: the original bandpassed noise "crack" +
+  // a 200Hz body thump, plus a bright noise tail that swells then gets
+  // snapped to (near) zero after ~120ms — the classic '80s gate, done here
+  // with a scheduled gain ramp rather than a real gate/compressor.
   _triggerSnare(time) {
     const ctx = this.ctx;
     const src = this._noiseSrc();
@@ -656,6 +797,40 @@ export class SynthwaveEngine {
     g.gain.exponentialRampToValueAtTime(0.001, time + 0.13);
     src.connect(bp); bp.connect(hp); hp.connect(g); g.connect(this.percGain);
     src.start(time); src.stop(time + 0.15);
+
+    const body = ctx.createOscillator();
+    body.type = 'triangle';
+    body.frequency.setValueAtTime(200, time);
+    body.frequency.exponentialRampToValueAtTime(120, time + 0.08);
+    const bodyGain = ctx.createGain();
+    this._pluck(bodyGain.gain, 0.45, 0.002, 0.09, time);
+    body.connect(bodyGain); bodyGain.connect(this.percGain);
+    body.start(time); body.stop(time + 0.12);
+
+    const tail = this._noiseSrc();
+    const tailHp = ctx.createBiquadFilter(); tailHp.type = 'highpass'; tailHp.frequency.value = 6000;
+    const tailGain = ctx.createGain();
+    tailGain.gain.setValueAtTime(0.0001, time);
+    tailGain.gain.linearRampToValueAtTime(0.32, time + 0.008);
+    tailGain.gain.setValueAtTime(0.32, time + 0.05);
+    tailGain.gain.linearRampToValueAtTime(0.0001, time + 0.12); // the gate, snapped shut
+    tail.connect(tailHp); tailHp.connect(tailGain); tailGain.connect(this.percGain);
+    tail.start(time); tail.stop(time + 0.13);
+  }
+
+  // Descending pitched tom hit — part of the last-bar drum fill (task 2).
+  _triggerTomHit(idx, time) {
+    const ctx = this.ctx;
+    const midi = TOM_FILL_NOTES[idx];
+    const freq = noteFreq(midi);
+    const o = ctx.createOscillator();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(freq * 1.15, time);
+    o.frequency.exponentialRampToValueAtTime(freq * 0.9, time + 0.13);
+    const g = ctx.createGain();
+    this._pluck(g.gain, 0.55, 0.004, 0.16, time);
+    o.connect(g); g.connect(this.percGain);
+    o.start(time); o.stop(time + 0.2);
   }
 
   _triggerHat(time, open) {
@@ -712,20 +887,117 @@ export class SynthwaveEngine {
     o3.start(time); o3.stop(time + dur + 0.02);
   }
 
-  // High-register sparkle layer doubling a note two octaves up through a
-  // highpass and the shimmer bus's short feedback delay — reads as air, not
-  // a new melody line.
+  // High-register sparkle layer doubling a note two octaves up — a tiny
+  // 2-operator FM bell (modulator at 3.5x the carrier, index decaying fast)
+  // for a cleaner DX7-ish "keys" character, through a highpass and the
+  // shimmer bus's short feedback delay. Reads as air, not a new melody line.
   _triggerShimmerNote(midi, time, dur) {
     const ctx = this.ctx;
-    const o = ctx.createOscillator();
-    o.type = 'sine'; o.frequency.value = noteFreq(midi);
+    const freq = noteFreq(midi);
+    const carrier = ctx.createOscillator(); carrier.type = 'sine'; carrier.frequency.value = freq;
+    const modulator = ctx.createOscillator(); modulator.type = 'sine'; modulator.frequency.value = freq * 3.5;
+    const modIndex = ctx.createGain();
+    modIndex.gain.setValueAtTime(freq * 1.4, time);
+    modIndex.gain.exponentialRampToValueAtTime(1, time + 0.045); // fast-decaying FM index
+    modulator.connect(modIndex); modIndex.connect(carrier.frequency);
+
     const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 3500;
     const g = ctx.createGain();
     this._pluck(g.gain, dbToGain(-20), 0.003, dur * 0.8, time);
-    o.connect(hp); hp.connect(g);
+    carrier.connect(hp); hp.connect(g);
     g.connect(this.shimmerGain);
     g.connect(this.shimmerDelay);
-    o.start(time); o.stop(time + dur + 0.05);
+    carrier.start(time); modulator.start(time);
+    carrier.stop(time + dur + 0.05); modulator.stop(time + dur + 0.05);
+  }
+
+  // Lead melody voice (tasks 1+2): a 5-voice detuned supersaw split across
+  // two independently-filtered, oppositely-panned halves for genuine stereo
+  // width (not just symmetric panning of one mono signal), a resonant
+  // lowpass that opens with note velocity, gentle drive, a short delay send
+  // and a shared gated-diffusion "reverb-ish" tail that snaps shut per note.
+  // Portamento glides the fundamental in from the previous melody note;
+  // longer notes get delayed vibrato.
+  _triggerLeadNote(midi, time, dur, isPeak) {
+    const ctx = this.ctx;
+    const freq = noteFreq(midi);
+    const prevFreq = this._leadPrevMidi != null ? noteFreq(this._leadPrevMidi) : freq;
+    const velocity = Math.min(1.15, 0.82 + Math.random() * 0.28 + (isPeak ? 0.15 : 0));
+
+    const filterL = ctx.createBiquadFilter(); filterL.type = 'lowpass'; filterL.Q.value = 7;
+    const filterR = ctx.createBiquadFilter(); filterR.type = 'lowpass'; filterR.Q.value = 7;
+    const cutoff = 900 + velocity * 2600;
+    for (const f of [filterL, filterR]) {
+      f.frequency.setValueAtTime(420, time);
+      f.frequency.linearRampToValueAtTime(cutoff, time + 0.05);
+      f.frequency.setTargetAtTime(cutoff * 0.7, time + 0.07, Math.max(0.15, dur * 0.5));
+    }
+
+    // 5 detuned saws (~+/-4..14 cents), split L/R by detune sign so each ear
+    // hears a genuinely different unison subset — real width, not a phase-
+    // identical mono signal panned two ways.
+    const detunes = [-13, -6, 0, 6, 13];
+    const oscs = detunes.map(detune => {
+      const o = ctx.createOscillator();
+      o.type = 'sawtooth'; o.detune.value = detune;
+      o.frequency.setValueAtTime(prevFreq, time);
+      o.frequency.linearRampToValueAtTime(freq, time + 0.04); // ~40ms portamento
+      if (detune <= 0) o.connect(filterL);
+      if (detune >= 0) o.connect(filterR);
+      return o;
+    });
+
+    // Delayed vibrato on notes >= a half note (8 steps) — fades in after
+    // ~180ms so short notes stay clean.
+    let vibrato = null;
+    if (dur >= SECONDS_PER_16TH * 8 - 0.001) {
+      const lfo = ctx.createOscillator(); lfo.type = 'sine'; lfo.frequency.value = 5.5;
+      const depth = ctx.createGain();
+      depth.gain.setValueAtTime(0, time);
+      depth.gain.setValueAtTime(0, time + 0.18);
+      depth.gain.linearRampToValueAtTime(12, time + 0.32); // ~12 cents depth
+      lfo.connect(depth);
+      for (const o of oscs) depth.connect(o.detune);
+      lfo.start(time);
+      vibrato = lfo;
+    }
+
+    const panL = ctx.createStereoPanner(); panL.pan.value = -0.35;
+    const panR = ctx.createStereoPanner(); panR.pan.value = 0.35;
+    filterL.connect(panL); filterR.connect(panR);
+
+    const drive = ctx.createWaveShaper(); drive.curve = this._leadDriveCurve; drive.oversample = '2x';
+    panL.connect(drive); panR.connect(drive);
+
+    const toneGain = ctx.createGain();
+    const peakAmp = 0.5 * velocity;
+    const attack = 0.03, release = 0.05;
+    const sustainEnd = Math.max(time + attack, time + dur - release);
+    toneGain.gain.setValueAtTime(0.0001, time);
+    toneGain.gain.linearRampToValueAtTime(peakAmp, time + attack);
+    toneGain.gain.setValueAtTime(peakAmp, sustainEnd);
+    toneGain.gain.linearRampToValueAtTime(0.0001, time + dur);
+    drive.connect(toneGain); toneGain.connect(this.leadGain);
+
+    // Into the existing delay send...
+    const delaySend = this._gain(ctx, 0.32, this.leadDelay);
+    toneGain.connect(delaySend);
+
+    // ...and the gated-diffusion tail, snapped shut per note (the '80s gate).
+    const diffuseSend = this._gain(ctx, 0.45, this.leadDiffuseIn);
+    toneGain.connect(diffuseSend);
+    const gg = this.leadGateGain.gain;
+    gg.cancelScheduledValues(time);
+    gg.setValueAtTime(0.0001, time);
+    gg.linearRampToValueAtTime(0.5, time + 0.02);
+    gg.setValueAtTime(0.5, time + Math.min(0.15, dur * 0.6));
+    gg.linearRampToValueAtTime(0.0001, time + Math.min(0.32, dur + 0.05));
+
+    const stopAt = time + dur + 0.12;
+    for (const o of oscs) { o.start(time); o.stop(stopAt); }
+    if (vibrato) vibrato.stop(stopAt);
+
+    this._leadPrevMidi = midi;
   }
 
   _triggerStab(rootMidi, time) {
@@ -1136,6 +1408,42 @@ export class SynthwaveEngine {
     });
   }
 
+  // Route-ring streak chime (task 3): a bright FM bell pluck quantized to
+  // the next 16th, stepping UP the E-minor pentatonic with streak (1=E5,
+  // 2=G5, 3=A5, ... capped two octaves up) with a delay tail — chained ring
+  // pickups read as an ascending Rez-style melody. No-ops before start().
+  ringChime(streak = 1) {
+    if (!this.ctx) return;
+    const ctx = this.ctx;
+    const time = this.quantize(1);
+
+    const PENT_STEPS = [0, 3, 5, 7, 10]; // E-minor pentatonic: E G A B D
+    const idx = Math.max(0, (streak | 0) - 1);
+    const octave = Math.min(Math.floor(idx / PENT_STEPS.length), 2); // cap 2 8ves up
+    const midi = 76 + PENT_STEPS[idx % PENT_STEPS.length] + octave * 12; // base E5
+
+    const freq = noteFreq(midi);
+    const carrier = ctx.createOscillator(); carrier.type = 'sine'; carrier.frequency.value = freq;
+    const modulator = ctx.createOscillator(); modulator.type = 'sine'; modulator.frequency.value = freq * 3.5;
+    const modIndex = ctx.createGain();
+    modIndex.gain.setValueAtTime(freq * 2.2, time);
+    modIndex.gain.exponentialRampToValueAtTime(1, time + 0.09);
+    modulator.connect(modIndex); modIndex.connect(carrier.frequency);
+
+    const g = ctx.createGain();
+    this._pluck(g.gain, 0.5, 0.003, 0.28, time);
+    carrier.connect(g); g.connect(this.sfxBus);
+
+    const delay = ctx.createDelay(1.0);
+    delay.delayTime.value = SECONDS_PER_16TH * 3;
+    const fb = this._gain(ctx, 0.34, delay);
+    const wet = this._gain(ctx, 0.3, this.sfxBus);
+    g.connect(delay); delay.connect(fb); delay.connect(wet);
+
+    carrier.start(time); modulator.start(time);
+    carrier.stop(time + 0.32); modulator.stop(time + 0.32);
+  }
+
   // Immediate: descending detuned drop over ~2s while the music layers ramp out.
   gameOverSting() {
     if (!this.ctx) return;
@@ -1162,7 +1470,7 @@ export class SynthwaveEngine {
     // Music layers ramp out under the sting.
     this._pendingIntensity = 0;
     this._currentIntensity = 0;
-    for (const layer of [this.padGain, this.pulseGain, this.kickGain, this.percGain, this.riffGain, this.stabGain, this.fxGain, this.shimmerGain, this.shardGain, this.seekerGain, this.bastionGain]) {
+    for (const layer of [this.padGain, this.pulseGain, this.kickGain, this.percGain, this.riffGain, this.stabGain, this.fxGain, this.shimmerGain, this.leadGain, this.shardGain, this.seekerGain, this.bastionGain]) {
       layer.gain.cancelScheduledValues(time);
       layer.gain.setValueAtTime(layer.gain.value, time);
       layer.gain.linearRampToValueAtTime(0, time + 1.6);

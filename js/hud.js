@@ -167,8 +167,26 @@ export class HUD {
 
 		wrap.appendChild(el('div', 'mo-progress__flag mo-progress__flag--end', '▲'));
 
+		this.streakEl = el('div', 'mo-streak');
+		wrap.appendChild(this.streakEl);
+
 		this.progressTrackEl = track;
 		this.rootEl.appendChild(wrap);
+	}
+
+	// ring streak readout under the progress bar; hidden at zero
+	setStreak(n, mult = 1) {
+		if (n === this._lastStreak && mult === this._lastMult) return;
+		this._lastStreak = n;
+		this._lastMult = mult;
+		if (n === 0 && mult <= 1) {
+			this.streakEl.textContent = '';
+			this.streakEl.classList.remove('mo-streak--hot');
+			return;
+		}
+		this.streakEl.textContent =
+			`RINGS ${n}` + (mult > 1 ? `  ·  OVERDRIVE ×${mult}` : '');
+		this.streakEl.classList.toggle('mo-streak--hot', mult > 1);
 	}
 
 	_buildCrosshair() {

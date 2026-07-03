@@ -29,7 +29,12 @@ Then open http://localhost:3000
 | Q / E | Barrel roll — dodges sideways with a moment of invulnerability |
 
 The route through the field forks at the split rings — pink lane right,
-cyan lane left — and merges again downstream.
+cyan lane left — and merges again downstream. The rings are collectible:
+thread them cleanly and the streak pays out — 3 in a row refills boost,
+6 restores your shield, 10 lights OVERDRIVE ×2 score for 20 seconds (and
+clean flying draws extra escort targets with the next wave). Miss one and
+the streak resets. Every meteorite is destructible with enough fire —
+big ones calve into fragments and pay score by size.
 
 A one-charge shield absorbs the next hit and recharges over ~9 seconds
 (the cyan meter under BOOST hums when it's armed). The soundtrack follows

@@ -118,6 +118,23 @@ function createBurstMaterial() {
 }
 
 // A soft radial-gradient sprite texture, generated once and shared by every
+function createRingTexture() {
+  const size = 128;
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = size;
+  const g = canvas.getContext('2d');
+  g.strokeStyle = 'rgba(255,255,255,1)';
+  g.lineWidth = 5;
+  g.shadowColor = 'rgba(255,255,255,0.9)';
+  g.shadowBlur = 10;
+  g.beginPath();
+  g.arc(size / 2, size / 2, size / 2 - 12, 0, Math.PI * 2);
+  g.stroke();
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
 // pooled flash sprite (only the SpriteMaterial's color/opacity differ).
 function createGlowTexture() {
   const size = 128;
@@ -150,11 +167,13 @@ export class FXSystem {
     this._spawnId = 0;
 
     this._glowTexture = createGlowTexture();
+    this._ringTexture = createRingTexture();
 
     this._initSpeedLines();
     this._explosions = this._createBurstPool(EXPLOSION_POOL_SIZE, EXPLOSION_PARTICLES);
     this._sparks = this._createBurstPool(SPARK_POOL_SIZE, SPARK_PARTICLES);
     this._flashes = this._createFlashPool(FLASH_POOL_SIZE);
+    this._shockwaves = this._createShockwavePool(8);
   }
 
   // -------------------------------------------------------------------
@@ -258,6 +277,64 @@ export class FXSystem {
     return pool;
   }
 
+  _createShockwavePool(poolSize) {
+    // expanding neon ring on kills — billboarded sprite with a ring texture
+    const pool = [];
+    for (let p = 0; p < poolSize; p++) {
+      const material = new THREE.SpriteMaterial({
+        map: this._ringTexture,
+        color: 0xffffff,
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        toneMapped: false,
+        opacity: 0,
+      });
+      const sprite = new THREE.Sprite(material);
+      sprite.visible = false;
+      sprite.frustumCulled = false;
+      this.scene.add(sprite);
+      pool.push({
+        sprite, material,
+        active: false, elapsed: 0, duration: 0.45,
+        maxScale: 90, spawnId: -1,
+      });
+    }
+    return pool;
+  }
+
+  spawnShockwave(position, colorHex = 0x2de2e6, scale = 1) {
+    const slot = this._acquireSlot(this._shockwaves);
+    slot.active = true;
+    slot.elapsed = 0;
+    slot.duration = 0.4 + scale * 0.08;
+    slot.maxScale = 70 * scale;
+    slot.spawnId = this._spawnId++;
+    slot.material.color.setHex(colorHex);
+    slot.material.opacity = 0.9;
+    slot.sprite.position.copy(position);
+    slot.sprite.scale.setScalar(6);
+    slot.sprite.visible = true;
+  }
+
+  _updateShockwaves(dt) {
+    for (let i = 0; i < this._shockwaves.length; i++) {
+      const slot = this._shockwaves[i];
+      if (!slot.active) continue;
+      slot.elapsed += dt;
+      const t = slot.elapsed / slot.duration;
+      if (t >= 1) {
+        slot.active = false;
+        slot.sprite.visible = false;
+        slot.material.opacity = 0;
+        continue;
+      }
+      const ease = 1 - (1 - t) * (1 - t); // fast start, decelerating
+      slot.sprite.scale.setScalar(6 + ease * slot.maxScale);
+      slot.material.opacity = 0.9 * (1 - t);
+    }
+  }
+
   _createFlashPool(poolSize) {
     const pool = [];
     for (let p = 0; p < poolSize; p++) {
@@ -302,6 +379,7 @@ export class FXSystem {
     this._updateBursts(this._explosions, dt);
     this._updateBursts(this._sparks, dt);
     this._updateFlashes(dt);
+    this._updateShockwaves(dt);
   }
 
   _updateSpeedLines(dt, speed, shipPosition) {

@@ -54,7 +54,10 @@ export class AsteroidField {
 			const mat = new THREE.MeshStandardMaterial({
 				color: 0x171030, roughness: 0.9, metalness: 0.15, flatShading: true,
 			});
-			const rim = new THREE.Color(i === 1 ? Colors.pink : Colors.cyan).multiplyScalar(0.9);
+			// rocks wear desaturated steel-violet rims — saturated neon is
+			// reserved for threats and interactables so enemies read instantly
+			const ROCK_RIMS = [0x574a8f, 0x8f4a72, 0x4a5c8f];
+			const rim = new THREE.Color(ROCK_RIMS[i]).multiplyScalar(0.85);
 			mat.onBeforeCompile = (shader) => {
 				shader.uniforms.uBeat = this.uniforms.uBeat;
 				shader.uniforms.uRim = { value: rim };
@@ -94,6 +97,21 @@ export class AsteroidField {
 		this._buildRouteRings();
 	}
 
+	// Corridor clearance at course-distance p — narrows through squeeze zones
+	corridorRadiusAt(p) {
+		let r = CONFIG.corridorRadius;
+		for (const s of CONFIG.squeezes) {
+			const t = smoothstep(s.start, s.start + 900, p) * smoothstep(s.end, s.end - 900, p);
+			r = Math.min(r, CONFIG.corridorRadius + (CONFIG.squeezeRadius - CONFIG.corridorRadius) * t);
+		}
+		return r;
+	}
+
+	_inSqueeze(p) {
+		for (const s of CONFIG.squeezes) if (p > s.start && p < s.end) return true;
+		return false;
+	}
+
 	// Route centerlines at course-distance p (p = -z, 0..courseLength).
 	// One snaking corridor, splitting into two around each fork. When split,
 	// index 0 is the right/pink branch, index 1 the left/cyan branch.
@@ -117,12 +135,21 @@ export class AsteroidField {
 	}
 
 	_buildRouteRings() {
+		// rings are collectible: grouped by course distance (a fork has two
+		// rings at the same p — flying through either one counts)
+		this.ringGroups = [];
+		this._nextRingGroup = 0;
 		const transforms = [];
 		for (let p = 1200; p < CONFIG.courseLength - 800; p += CONFIG.routeRingSpacing) {
 			const centers = this.routeCenters(p);
+			const group = { p, rings: [] };
 			centers.forEach((c, i) => {
-				transforms.push({ x: c.x, y: c.y, z: -p, split: centers.length > 1, right: i === 0 });
+				const split = centers.length > 1;
+				const colorHex = split ? (i === 0 ? Colors.pink : Colors.cyan) : Colors.cyan;
+				group.rings.push({ idx: transforms.length, x: c.x, y: c.y, colorHex, dim: !split });
+				transforms.push({ x: c.x, y: c.y, z: -p, colorHex, dim: !split });
 			});
+			this.ringGroups.push(group);
 		}
 		const geo = new THREE.TorusGeometry(180, 3.5, 6, 40);
 		this._ringMat = new THREE.MeshBasicMaterial({
@@ -135,13 +162,42 @@ export class AsteroidField {
 		transforms.forEach((t, i) => {
 			m.makeTranslation(t.x, t.y, t.z);
 			rings.setMatrixAt(i, m);
-			if (t.split) col.setHex(t.right ? Colors.pink : Colors.cyan);
-			else col.setHex(Colors.cyan).multiplyScalar(0.55);
+			col.setHex(t.colorHex);
+			if (t.dim) col.multiplyScalar(0.55);
 			rings.setColorAt(i, col);
 		});
 		rings.instanceColor.needsUpdate = true;
 		rings.frustumCulled = false;
+		this._ringMesh = rings;
+		this._ringColor = new THREE.Color();
 		this.scene.add(rings);
+	}
+
+	// Call once per frame with the ship's previous/current z and lateral
+	// position. Returns {type:'hit', x, y, p} when the ship threads a ring,
+	// {type:'miss'} when it sails past a ring group, else null.
+	checkRings(prevZ, z, x, y) {
+		const prevP = -prevZ, p = -z;
+		let result = null;
+		while (this._nextRingGroup < this.ringGroups.length &&
+			this.ringGroups[this._nextRingGroup].p <= p) {
+			const g = this.ringGroups[this._nextRingGroup];
+			this._nextRingGroup += 1;
+			if (g.p <= prevP) continue;
+			let hit = null;
+			for (const r of g.rings) {
+				if (Math.hypot(x - r.x, y - r.y) <= 200) { hit = r; break; }
+			}
+			if (hit) {
+				this._ringColor.setHex(0xffffff);
+				this._ringMesh.setColorAt(hit.idx, this._ringColor);
+				this._ringMesh.instanceColor.needsUpdate = true;
+				result = { type: 'hit', x: hit.x, y: hit.y, p: g.p };
+			} else {
+				result = { type: 'miss' };
+			}
+		}
+		return result;
 	}
 
 	_buildGate() {
@@ -175,7 +231,8 @@ export class AsteroidField {
 		if (frac >= 1) { this.chunks.set(index, []); return; } // clear space past the gate
 
 		const records = [];
-		const count = Math.round(18 + 34 * Math.sin(Math.min(1, frac * 1.15) * Math.PI * 0.5) * (0.75 + 0.5 * rng()));
+		let count = Math.round(18 + 34 * Math.sin(Math.min(1, frac * 1.15) * Math.PI * 0.5) * (0.75 + 0.5 * rng()));
+		if (this._inSqueeze(index * D + D / 2)) count = Math.round(count * 1.55); // squeeze = dense
 		for (let i = 0; i < count; i++) {
 			const roll = rng();
 			let r;
@@ -187,10 +244,11 @@ export class AsteroidField {
 			let y = (rng() * 2 - 1) * 1050;
 			// carve the flyable corridors: push rocks out of every route lane
 			const centers = this.routeCenters(-z);
+			const lane = this.corridorRadiusAt(-z);
 			for (const c of centers) {
 				const dx = x - c.x, dy = y - c.y;
 				const d = Math.hypot(dx, dy);
-				const clear = CONFIG.corridorRadius + r;
+				const clear = lane + r;
 				if (d < clear) {
 					const ang = d > 1 ? Math.atan2(dy, dx) : rng() * Math.PI * 2;
 					const out = clear + 40 + rng() * 260;
@@ -222,7 +280,7 @@ export class AsteroidField {
 			quat: new THREE.Quaternion().setFromEuler(new THREE.Euler(rng() * 6.28, rng() * 6.28, rng() * 6.28)),
 			axis: new THREE.Vector3().randomDirection(),
 			spin: (rng() - 0.5) * (r > 200 ? 0.05 : 0.5),
-			hp: r <= 45 ? 2 : Infinity,
+			hp: r <= 45 ? 2 : Math.ceil(r / 14), // everything dies with enough fire
 			alive: true,
 		};
 		this.records.add(rec);
@@ -308,18 +366,30 @@ export class AsteroidField {
 		return null;
 	}
 
-	// returns true if the rock was destroyed (small rocks only)
+	// returns true if the rock was destroyed. Big rocks calve into fragments.
 	damage(rec, n = 1) {
 		rec.hp -= n;
-		if (rec.hp <= 0) {
-			this._despawn(rec);
-			for (const records of this.chunks.values()) {
-				const i = records.indexOf(rec);
-				if (i >= 0) { records.splice(i, 1); break; }
-			}
-			return true;
+		if (rec.hp > 0) return false;
+
+		let list = null;
+		for (const records of this.chunks.values()) {
+			const i = records.indexOf(rec);
+			if (i >= 0) { list = records; records.splice(i, 1); break; }
 		}
-		return false;
+		this._despawn(rec);
+
+		if (rec.r > 55 && list) {
+			const rng = Math.random;
+			for (let i = 0; i < 3; i++) {
+				const child = this._spawn(rng,
+					rec.pos.x + (rng() * 2 - 1) * rec.r * 0.8,
+					rec.pos.y + (rng() * 2 - 1) * rec.r * 0.8,
+					rec.pos.z + (rng() * 2 - 1) * rec.r * 0.5,
+					rec.r * (0.3 + rng() * 0.15));
+				if (child) list.push(child);
+			}
+		}
+		return true;
 	}
 
 	beatPulse(strength = 1) {
@@ -329,5 +399,15 @@ export class AsteroidField {
 	reset() {
 		for (const rec of [...this.records]) this._despawn(rec);
 		this.chunks.clear();
+		// re-arm the rings: pointer back to the start, colors restored
+		this._nextRingGroup = 0;
+		for (const g of this.ringGroups) {
+			for (const r of g.rings) {
+				this._ringColor.setHex(r.colorHex);
+				if (r.dim) this._ringColor.multiplyScalar(0.55);
+				this._ringMesh.setColorAt(r.idx, this._ringColor);
+			}
+		}
+		this._ringMesh.instanceColor.needsUpdate = true;
 	}
 }
