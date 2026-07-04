@@ -267,9 +267,7 @@ export class SynthwaveEngine {
     // shimmer) — just enough to round the mix, not add fuzz.
     this._padDriveCurve = makeDriveCurve(3);
     this._crushCurve = makeCrushCurve(6);
-    // Gentler than the riff's drive (13) — the lead supersaw wants a soft
-    // rounding, not grit.
-    this._leadDriveCurve = makeDriveCurve(6);
+    // (The lead voice runs clean — no drive curve; see _triggerLeadNote.)
   }
 
   // ---- Lifecycle ------------------------------------------------------
@@ -911,89 +909,93 @@ export class SynthwaveEngine {
     carrier.stop(time + dur + 0.05); modulator.stop(time + dur + 0.05);
   }
 
-  // Lead melody voice (tasks 1+2): a 5-voice detuned supersaw split across
-  // two independently-filtered, oppositely-panned halves for genuine stereo
-  // width (not just symmetric panning of one mono signal), a resonant
-  // lowpass that opens with note velocity, gentle drive, a short delay send
-  // and a shared gated-diffusion "reverb-ish" tail that snaps shut per note.
-  // Portamento glides the fundamental in from the previous melody note;
-  // longer notes get delayed vibrato.
+  // Lead melody voice — a warm, rounded brass-pad tone: three tightly
+  // detuned saws (±4 cents) over a triangle sub an octave down, through a
+  // soft low-Q lowpass. No drive, no resonant whistle, no hard gate — the
+  // melody should sing over the riff, not fight it. Portamento glides in
+  // from the previous note; longer notes get a delayed, shallow vibrato.
   _triggerLeadNote(midi, time, dur, isPeak) {
     const ctx = this.ctx;
     const freq = noteFreq(midi);
     const prevFreq = this._leadPrevMidi != null ? noteFreq(this._leadPrevMidi) : freq;
-    const velocity = Math.min(1.15, 0.82 + Math.random() * 0.28 + (isPeak ? 0.15 : 0));
+    const velocity = 0.85 + Math.random() * 0.08 + (isPeak ? 0.12 : 0);
 
-    const filterL = ctx.createBiquadFilter(); filterL.type = 'lowpass'; filterL.Q.value = 7;
-    const filterR = ctx.createBiquadFilter(); filterR.type = 'lowpass'; filterR.Q.value = 7;
-    const cutoff = 900 + velocity * 2600;
+    const filterL = ctx.createBiquadFilter(); filterL.type = 'lowpass'; filterL.Q.value = 0.9;
+    const filterR = ctx.createBiquadFilter(); filterR.type = 'lowpass'; filterR.Q.value = 0.9;
+    const cutoff = 750 + velocity * 1500;
     for (const f of [filterL, filterR]) {
-      f.frequency.setValueAtTime(420, time);
-      f.frequency.linearRampToValueAtTime(cutoff, time + 0.05);
-      f.frequency.setTargetAtTime(cutoff * 0.7, time + 0.07, Math.max(0.15, dur * 0.5));
+      f.frequency.setValueAtTime(500, time);
+      f.frequency.linearRampToValueAtTime(cutoff, time + 0.06);
+      f.frequency.setTargetAtTime(cutoff * 0.8, time + 0.09, Math.max(0.2, dur * 0.6));
     }
 
-    // 5 detuned saws (~+/-4..14 cents), split L/R by detune sign so each ear
-    // hears a genuinely different unison subset — real width, not a phase-
-    // identical mono signal panned two ways.
-    const detunes = [-13, -6, 0, 6, 13];
+    // Three saws, tight unison, split L/R by detune sign for gentle width.
+    const detunes = [-4, 0, 4];
     const oscs = detunes.map(detune => {
       const o = ctx.createOscillator();
       o.type = 'sawtooth'; o.detune.value = detune;
       o.frequency.setValueAtTime(prevFreq, time);
-      o.frequency.linearRampToValueAtTime(freq, time + 0.04); // ~40ms portamento
+      o.frequency.linearRampToValueAtTime(freq, time + 0.05); // ~50ms portamento
       if (detune <= 0) o.connect(filterL);
       if (detune >= 0) o.connect(filterR);
       return o;
     });
 
+    // Triangle sub an octave down — the warmth under the saws.
+    const sub = ctx.createOscillator();
+    sub.type = 'triangle';
+    sub.frequency.setValueAtTime(prevFreq / 2, time);
+    sub.frequency.linearRampToValueAtTime(freq / 2, time + 0.05);
+    const subGain = ctx.createGain(); subGain.gain.value = 0.5;
+    sub.connect(subGain); subGain.connect(filterL); subGain.connect(filterR);
+    oscs.push(sub);
+
     // Delayed vibrato on notes >= a half note (8 steps) — fades in after
     // ~180ms so short notes stay clean.
     let vibrato = null;
     if (dur >= SECONDS_PER_16TH * 8 - 0.001) {
-      const lfo = ctx.createOscillator(); lfo.type = 'sine'; lfo.frequency.value = 5.5;
+      const lfo = ctx.createOscillator(); lfo.type = 'sine'; lfo.frequency.value = 4.8;
       const depth = ctx.createGain();
       depth.gain.setValueAtTime(0, time);
       depth.gain.setValueAtTime(0, time + 0.18);
-      depth.gain.linearRampToValueAtTime(12, time + 0.32); // ~12 cents depth
+      depth.gain.linearRampToValueAtTime(7, time + 0.35); // ~7 cents depth
       lfo.connect(depth);
       for (const o of oscs) depth.connect(o.detune);
       lfo.start(time);
       vibrato = lfo;
     }
 
-    const panL = ctx.createStereoPanner(); panL.pan.value = -0.35;
-    const panR = ctx.createStereoPanner(); panR.pan.value = 0.35;
+    const panL = ctx.createStereoPanner(); panL.pan.value = -0.3;
+    const panR = ctx.createStereoPanner(); panR.pan.value = 0.3;
     filterL.connect(panL); filterR.connect(panR);
 
-    const drive = ctx.createWaveShaper(); drive.curve = this._leadDriveCurve; drive.oversample = '2x';
-    panL.connect(drive); panR.connect(drive);
-
     const toneGain = ctx.createGain();
-    const peakAmp = 0.5 * velocity;
-    const attack = 0.03, release = 0.05;
+    const peakAmp = 0.42 * velocity;
+    const attack = 0.05, release = 0.1;
     const sustainEnd = Math.max(time + attack, time + dur - release);
     toneGain.gain.setValueAtTime(0.0001, time);
     toneGain.gain.linearRampToValueAtTime(peakAmp, time + attack);
     toneGain.gain.setValueAtTime(peakAmp, sustainEnd);
-    toneGain.gain.linearRampToValueAtTime(0.0001, time + dur);
-    drive.connect(toneGain); toneGain.connect(this.leadGain);
+    toneGain.gain.linearRampToValueAtTime(0.0001, time + dur + 0.04);
+    panL.connect(toneGain); panR.connect(toneGain);
+    toneGain.connect(this.leadGain);
 
     // Into the existing delay send...
-    const delaySend = this._gain(ctx, 0.32, this.leadDelay);
+    const delaySend = this._gain(ctx, 0.28, this.leadDelay);
     toneGain.connect(delaySend);
 
-    // ...and the gated-diffusion tail, snapped shut per note (the '80s gate).
-    const diffuseSend = this._gain(ctx, 0.45, this.leadDiffuseIn);
+    // ...and the diffusion tail — opened gently per note rather than the old
+    // hard '80s gate snap, so the tail blooms instead of chopping.
+    const diffuseSend = this._gain(ctx, 0.4, this.leadDiffuseIn);
     toneGain.connect(diffuseSend);
     const gg = this.leadGateGain.gain;
     gg.cancelScheduledValues(time);
     gg.setValueAtTime(0.0001, time);
-    gg.linearRampToValueAtTime(0.5, time + 0.02);
-    gg.setValueAtTime(0.5, time + Math.min(0.15, dur * 0.6));
-    gg.linearRampToValueAtTime(0.0001, time + Math.min(0.32, dur + 0.05));
+    gg.linearRampToValueAtTime(0.4, time + 0.04);
+    gg.setValueAtTime(0.4, time + Math.min(0.2, dur * 0.7));
+    gg.linearRampToValueAtTime(0.0001, time + Math.min(0.55, dur + 0.18));
 
-    const stopAt = time + dur + 0.12;
+    const stopAt = time + dur + 0.16;
     for (const o of oscs) { o.start(time); o.stop(stopAt); }
     if (vibrato) vibrato.stop(stopAt);
 
@@ -1163,21 +1165,28 @@ export class SynthwaveEngine {
     o1.stop(time + 0.3); o2.stop(time + 0.3);
   }
 
-  // Low FM-ish zap — meaner than the player's pluck.
+  // Low zap pitched to the current bar's chord — enters on the fifth and
+  // falls to the root, with harmonic (integer-ratio) FM so it growls in key
+  // instead of clanging. The dark answer to the player's pentatonic plucks.
   enemyShoot() {
     if (!this.ctx) return;
     const time = this.quantize(1);
     const ctx = this.ctx;
-    const carrier = ctx.createOscillator(); carrier.type = 'sawtooth'; carrier.frequency.value = 180;
-    const mod = ctx.createOscillator(); mod.type = 'square'; mod.frequency.value = 55;
-    const modGain = this._gain(ctx, 120, carrier.frequency);
+    const bar = Math.floor(this._stepIndexAt(time) / STEPS_PER_BAR);
+    const root = this._activeChordRoots[((bar % BARS_PER_PHRASE) + BARS_PER_PHRASE) % BARS_PER_PHRASE] ?? 40;
+    const f0 = noteFreq(root + 12); // chord root around E3
+    const carrier = ctx.createOscillator(); carrier.type = 'sawtooth';
+    carrier.frequency.setValueAtTime(f0 * 1.5, time);
+    carrier.frequency.exponentialRampToValueAtTime(f0, time + 0.12);
+    const mod = ctx.createOscillator(); mod.type = 'sine'; mod.frequency.value = f0 / 2;
+    const modGain = this._gain(ctx, f0 * 0.8, carrier.frequency);
     mod.connect(modGain);
     const filter = ctx.createBiquadFilter();
     filter.type = 'lowpass';
-    filter.frequency.setValueAtTime(1400, time);
-    filter.frequency.exponentialRampToValueAtTime(150, time + 0.18);
+    filter.frequency.setValueAtTime(1600, time);
+    filter.frequency.exponentialRampToValueAtTime(220, time + 0.18);
     const g = ctx.createGain();
-    g.gain.setValueAtTime(0.5, time);
+    g.gain.setValueAtTime(0.42, time);
     g.gain.exponentialRampToValueAtTime(0.001, time + 0.2);
     carrier.connect(filter); filter.connect(g); g.connect(this.sfxBus);
     carrier.start(time); mod.start(time);
@@ -1250,29 +1259,44 @@ export class SynthwaveEngine {
     }
   }
 
-  // Immediate — danger can't wait for the grid: dissonant minor-second stab + noise burst.
+  // Immediate — danger can't wait for the grid — but musical: a falling Em
+  // triad (E5 -> B4 -> G4) over a low pitch-drop thump and a soft noise
+  // dust. Reads as "hurt" through the descending contour, not dissonance.
   playerHit() {
     if (!this.ctx) return;
     const ctx = this.ctx;
     const time = ctx.currentTime + 0.001;
 
-    const shaper = ctx.createWaveShaper(); shaper.curve = this._driveCurve;
-    const g = ctx.createGain();
-    g.gain.setValueAtTime(0.6, time);
-    g.gain.exponentialRampToValueAtTime(0.001, time + 0.3);
-    shaper.connect(g); g.connect(this.sfxBus);
-    for (const midi of [64, 65]) { // E4 + F4
-      const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = noteFreq(midi);
-      o.connect(shaper); o.start(time); o.stop(time + 0.32);
-    }
+    // Falling arpeggio — square+triangle plucks, each softer than the last.
+    [76, 71, 67].forEach((midi, i) => { // E5 B4 G4
+      const t = time + i * 0.055;
+      const o = ctx.createOscillator(); o.type = 'square'; o.frequency.value = noteFreq(midi);
+      const o2 = ctx.createOscillator(); o2.type = 'triangle'; o2.frequency.value = noteFreq(midi - 12);
+      const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 3200;
+      const g = ctx.createGain();
+      this._pluck(g.gain, 0.34 - i * 0.06, 0.004, 0.16, t);
+      o.connect(lp); o2.connect(lp); lp.connect(g); g.connect(this.sfxBus);
+      o.start(t); o2.start(t); o.stop(t + 0.2); o2.stop(t + 0.2);
+    });
 
+    // Low thump underneath — the impact body, landing near E2.
+    const o = ctx.createOscillator();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(165, time);
+    o.frequency.exponentialRampToValueAtTime(55, time + 0.22);
+    const og = ctx.createGain();
+    this._pluck(og.gain, 0.55, 0.005, 0.24, time);
+    o.connect(og); og.connect(this.sfxBus);
+    o.start(time); o.stop(time + 0.26);
+
+    // Short, soft noise — texture, not a blast.
     const src = this._noiseSrc();
-    const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 1500;
+    const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 1800;
     const ng = ctx.createGain();
-    ng.gain.setValueAtTime(0.5, time);
-    ng.gain.exponentialRampToValueAtTime(0.001, time + 0.15);
+    ng.gain.setValueAtTime(0.28, time);
+    ng.gain.exponentialRampToValueAtTime(0.001, time + 0.12);
     src.connect(hp); hp.connect(ng); ng.connect(this.sfxBus);
-    src.start(time); src.stop(time + 0.17);
+    src.start(time); src.stop(time + 0.14);
   }
 
   // Immediate — a protective "whomp": filtered noise burst + sine
@@ -1292,23 +1316,24 @@ export class SynthwaveEngine {
     src.connect(bp); bp.connect(ng); ng.connect(this.sfxBus);
     src.start(time); src.stop(time + 0.24);
 
-    // Sine pitch-drop — the protective thud underneath the noise.
+    // Sine pitch-drop — the protective thud, falling E4-ish down to E2.
     const o = ctx.createOscillator();
     o.type = 'sine';
-    o.frequency.setValueAtTime(520, time);
-    o.frequency.exponentialRampToValueAtTime(110, time + 0.2);
+    o.frequency.setValueAtTime(noteFreq(64), time);
+    o.frequency.exponentialRampToValueAtTime(noteFreq(40), time + 0.2);
     const og = ctx.createGain();
     this._pluck(og.gain, 0.5, 0.004, 0.22, time);
     o.connect(og); og.connect(this.sfxBus);
     o.start(time); o.stop(time + 0.24);
 
-    // Short metallic ring — a few detuned high partials, fast decay.
+    // Short bell ring — harmonic partials on E6 (root/fifth/octave), so even
+    // the shield chimes in key.
     const ringBp = ctx.createBiquadFilter(); ringBp.type = 'bandpass'; ringBp.frequency.value = 2400; ringBp.Q.value = 6;
     const rg = ctx.createGain();
     this._pluck(rg.gain, 0.3, 0.002, 0.16, time);
     ringBp.connect(rg); rg.connect(this.sfxBus);
-    for (const ratio of [1, 1.8, 2.6]) {
-      const ro = ctx.createOscillator(); ro.type = 'triangle'; ro.frequency.value = 1200 * ratio;
+    for (const ratio of [1, 1.5, 2]) {
+      const ro = ctx.createOscillator(); ro.type = 'triangle'; ro.frequency.value = noteFreq(88) * ratio;
       ro.connect(ringBp); ro.start(time); ro.stop(time + 0.18);
     }
   }

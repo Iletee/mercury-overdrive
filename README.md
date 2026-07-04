@@ -69,9 +69,11 @@ wired to it:
   progress, each with its own chord loop and rotating riff variants, plus a
   supersaw lead that plays call-and-response phrases on alternating 8-bar
   phrases.
-- Every kick **sidechain-ducks** the mix, and every glowing thing in the
-  world — asteroid rims, enemy shells, the HUD, your exhaust, the nebula —
-  pulses on the beat.
+- Every kick **sidechain-ducks** the mix, and the beat has a visible source:
+  a **pulsar** on the horizon kicks on every beat and throws an expanding
+  halo ring across the starfield on the downbeat (it hangs nearer than the
+  stars, so it parallaxes as you steer). The world — asteroid rims, enemy
+  shells, the HUD — shimmers along in sympathy.
 
 ## Code map
 
@@ -86,7 +88,7 @@ wired to it:
 | `js/music.js` | The procedural audio engine — transport, sections, motifs, all SFX |
 | `js/fx.js` | Speed-lines, explosions, shockwaves, hit sparks (all pooled) |
 | `js/debris.js` | Micrometeors whipping past the canopy |
-| `js/sky.js` | Nebula dome, starfield, outrun sun, the approaching planet |
+| `js/sky.js` | Nebula dome, starfield, the beat-pulsing pulsar, the approaching planet |
 | `js/hud.js` + `style/main.css` | Neon HUD: hull/boost/shield, radar pings, streak, reticles |
 
 There is no framework and no build: `index.html` maps `three` via an import

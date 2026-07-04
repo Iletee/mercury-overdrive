@@ -19,6 +19,11 @@
 	--pink: #FF3864;
 	--pink-soft: rgba(255, 56, 100, 0.45);
 	--orange: #FF6C11;
+	/* Text variants: near-white cores so small type stays readable — the hue
+	   lives in the text-shadow glow, not the fill. */
+	--cyan-text: #c8fbff;
+	--pink-text: #ffb9c9;
+	--orange-text: #ffc08a;
 	--purple-deep: #0d0221;
 	--purple: #261447;
 	--panel-bg: rgba(13, 2, 33, 0.55);
@@ -160,9 +165,8 @@ html, body {
 .mo-hud-label {
 	font-size: 12px;
 	letter-spacing: 3px;
-	color: var(--cyan);
-	text-shadow: 0 0 6px var(--cyan-soft);
-	opacity: 0.85;
+	color: var(--cyan-text);
+	text-shadow: 0 0 6px var(--cyan), 0 0 12px var(--cyan-soft);
 	transition: text-shadow 0.12s ease;
 }
 
@@ -301,13 +305,13 @@ html, body {
 	margin-top: 6px;
 	font-size: 11px;
 	letter-spacing: 0.22em;
-	color: var(--cyan);
+	color: var(--cyan-text);
 	text-shadow: 0 0 8px var(--cyan-soft);
 	white-space: nowrap;
 }
 
 .mo-streak--hot {
-	color: var(--pink);
+	color: var(--pink-text);
 	text-shadow: 0 0 10px var(--pink);
 	animation: mo-streak-blink 0.5s ease-in-out infinite alternate;
 }
@@ -352,7 +356,7 @@ html, body {
 .mo-speed__value {
 	font-size: clamp(38px, 5vw, 58px);
 	line-height: 1;
-	color: var(--cyan);
+	color: var(--cyan-text);
 	text-shadow: 0 0 10px var(--cyan), 0 0 24px var(--cyan-soft);
 	transition: text-shadow 0.12s ease;
 }
@@ -360,8 +364,9 @@ html, body {
 .mo-speed__unit {
 	font-size: 13px;
 	letter-spacing: 2px;
-	color: var(--cyan);
-	opacity: 0.75;
+	color: var(--cyan-text);
+	text-shadow: 0 0 6px var(--cyan-soft);
+	opacity: 0.9;
 }
 
 /* ==========================================================================
@@ -383,7 +388,7 @@ html, body {
 	margin-top: 4px;
 	font-size: 26px;
 	letter-spacing: 3px;
-	color: var(--pink);
+	color: var(--pink-text);
 	text-shadow: 0 0 8px var(--pink), 0 0 20px var(--pink-soft);
 	transition: text-shadow 0.12s ease;
 }
@@ -441,12 +446,12 @@ html, body {
 
 .mo-progress__flag {
 	font-size: 14px;
-	color: var(--cyan);
+	color: var(--cyan-text);
 	text-shadow: 0 0 6px var(--cyan-soft);
 }
 
 .mo-progress__flag--end {
-	color: var(--pink);
+	color: var(--pink-text);
 	text-shadow: 0 0 6px var(--pink-soft);
 }
 
@@ -610,7 +615,7 @@ html, body {
 	font-family: var(--font-title);
 	font-size: clamp(28px, 4vw, 48px);
 	letter-spacing: 4px;
-	color: var(--pink);
+	color: var(--pink-text);
 	text-shadow: 0 0 12px var(--pink), 0 0 30px var(--pink-soft);
 	white-space: nowrap;
 	opacity: 0;
@@ -688,7 +693,7 @@ html, body {
 	font-family: var(--font-hud);
 	font-size: clamp(14px, 2vw, 20px);
 	letter-spacing: 10px;
-	color: var(--orange);
+	color: var(--orange-text);
 	text-shadow: 0 0 10px rgba(255, 108, 17, 0.6);
 }
 
@@ -697,7 +702,7 @@ html, body {
 	font-family: var(--font-hud);
 	font-size: 16px;
 	letter-spacing: 4px;
-	color: var(--cyan);
+	color: var(--cyan-text);
 	text-shadow: 0 0 10px var(--cyan-soft);
 	animation: mo-prompt-pulse 1.6s ease-in-out infinite;
 }
@@ -714,18 +719,18 @@ html, body {
 	margin-top: 22px;
 	font-size: 12px;
 	letter-spacing: 1.5px;
-	color: rgba(234, 252, 255, 0.6);
+	color: rgba(234, 252, 255, 0.8);
 	flex-wrap: wrap;
 	justify-content: center;
 }
 
 .mo-title__key {
-	color: var(--cyan);
+	color: var(--cyan-text);
 	margin-right: 4px;
 }
 
 .mo-title__dot {
-	color: rgba(234, 252, 255, 0.3);
+	color: rgba(234, 252, 255, 0.45);
 }
 
 /* ==========================================================================
@@ -766,12 +771,12 @@ html, body {
 	font-size: clamp(38px, 7vw, 84px);
 	letter-spacing: 5px;
 	text-transform: uppercase;
-	color: var(--pink);
+	color: var(--pink-text);
 	text-shadow: 0 0 14px var(--pink), 0 0 40px var(--pink-soft);
 }
 
 .mo-end--victory .mo-end__title {
-	color: var(--cyan);
+	color: var(--cyan-text);
 	text-shadow: 0 0 14px var(--cyan), 0 0 40px var(--cyan-soft);
 }
 
@@ -788,6 +793,6 @@ html, body {
 	font-family: var(--font-hud);
 	font-size: 14px;
 	letter-spacing: 2px;
-	color: var(--orange);
+	color: var(--orange-text);
 	animation: mo-prompt-pulse 1.6s ease-in-out infinite;
 }

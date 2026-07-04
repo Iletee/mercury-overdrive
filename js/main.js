@@ -134,8 +134,10 @@ enemies.events.onEnemyShoot = (e) => {
 
 music.onBeat(({ beat, bar }) => {
 	if (state !== State.PLAYING) return;
-	field.beatPulse(0.9);
-	backdrop.beatPulse(1);
+	// The pulsar in the sky is the visible source of the beat (big halo ring
+	// on the downbeat); the world around the ship only shimmers in sympathy.
+	backdrop.beatPulse(beat % 4 === 0 ? 1 : 0.55);
+	field.beatPulse(0.55);
 	fx.beatPulse(1);
 	debris.beatPulse(1);
 	hud.beatPulse();
@@ -389,4 +391,4 @@ window.addEventListener('resize', () => {
 loop();
 
 // debug handle for automated testing
-window.__mo = { field, ship, enemies, weapons };
+window.__mo = { field, ship, enemies, weapons, music, backdrop };

@@ -392,7 +392,7 @@ export class FXSystem {
     const speedT = clamp01(speed / 900);
     const pulse = this._beatPulseValue;
     const streakLen = clamp(2.5 + speed * 0.1, 2.5, SPEEDLINE_LENGTH * 0.24);
-    const brightnessMul = 0.3 + speedT * 0.55 + pulse * 0.35;
+    const brightnessMul = 0.3 + speedT * 0.55 + pulse * 0.12;
 
     const headX = this._slHeadX;
     const headY = this._slHeadY;
@@ -449,7 +449,7 @@ export class FXSystem {
 
     this._speedLineGeometry.attributes.position.needsUpdate = true;
     this._speedLineGeometry.attributes.color.needsUpdate = true;
-    this._speedLineMaterial.opacity = clamp01(0.14 + speedT * 0.32 + pulse * 0.25);
+    this._speedLineMaterial.opacity = clamp01(0.14 + speedT * 0.32 + pulse * 0.08);
   }
 
   _updateBursts(pool, dt) {

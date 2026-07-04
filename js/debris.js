@@ -18,7 +18,7 @@ const DRIFT_SPEED = 25;    // +/- u/s per axis
 const SPIN_MIN = 1;
 const SPIN_MAX = 4;
 const GLOW_BASE_OPACITY = 0.55;
-const GLOW_PULSE_OPACITY = 1.0;
+const GLOW_PULSE_OPACITY = 0.72;
 const GLOW_PULSE_DECAY = 0.3;    // seconds to decay a beat pulse
 
 function randRange(lo, hi) {

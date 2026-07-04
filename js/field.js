@@ -67,7 +67,7 @@ export class AsteroidField {
 						{
 							vec3 rimViewDir = normalize(vViewPosition);
 							float fres = pow(1.0 - clamp(dot(normalize(normal), rimViewDir), 0.0, 1.0), 2.6);
-							totalEmissiveRadiance += uRim * fres * (0.5 + 1.1 * uBeat);
+							totalEmissiveRadiance += uRim * fres * (0.62 + 0.32 * uBeat);
 						}
 					`);
 				shader.fragmentShader = 'uniform float uBeat;\nuniform vec3 uRim;\n' + shader.fragmentShader;

@@ -1,6 +1,8 @@
-// Deep-space backdrop: shader nebula dome, star points, an outrun sun and a
-// kilometre-scale ringed planet that slowly grows as the run progresses.
-// Everything re-centres on the ship each frame so it reads as infinitely far.
+// Deep-space backdrop: shader nebula dome, star points, a beat-pulsing
+// pulsar and a kilometre-scale ringed planet that slowly grows as the run
+// progresses. The dome, stars and planet re-centre on the ship each frame so
+// they read as infinitely far; the pulsar sits "nearer" (see the parallax
+// factor in update) so it slides against the starfield as you steer.
 
 import * as THREE from 'three';
 import { Colors, CONFIG } from './store.js';
@@ -55,24 +57,50 @@ const NEBULA_FRAG = /* glsl */`
 	}
 `;
 
-function makeSunTexture() {
-	const s = 512;
+// The pulsar core: a hard white-cyan point with a diffraction cross.
+function makePulsarCoreTexture() {
+	const s = 256;
 	const cv = document.createElement('canvas');
 	cv.width = cv.height = s;
 	const g = cv.getContext('2d');
 	const grad = g.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
-	grad.addColorStop(0, 'rgba(255,235,200,1)');
-	grad.addColorStop(0.35, 'rgba(255,108,17,0.95)');
-	grad.addColorStop(0.62, 'rgba(255,56,100,0.55)');
-	grad.addColorStop(1, 'rgba(255,56,100,0)');
+	grad.addColorStop(0, 'rgba(255,255,255,1)');
+	grad.addColorStop(0.16, 'rgba(196,250,255,0.95)');
+	grad.addColorStop(0.42, 'rgba(45,226,230,0.45)');
+	grad.addColorStop(1, 'rgba(45,226,230,0)');
 	g.fillStyle = grad;
 	g.fillRect(0, 0, s, s);
-	// retro stripes across the lower half
-	g.globalCompositeOperation = 'destination-out';
-	for (let i = 0; i < 6; i++) {
-		const y = s * 0.52 + i * (s * 0.055);
-		g.fillRect(0, y, s, 3 + i * 2.2);
+	// diffraction spikes
+	g.globalCompositeOperation = 'lighter';
+	for (const horizontal of [true, false]) {
+		const spike = horizontal
+			? g.createLinearGradient(0, 0, s, 0)
+			: g.createLinearGradient(0, 0, 0, s);
+		spike.addColorStop(0, 'rgba(160,240,255,0)');
+		spike.addColorStop(0.5, 'rgba(220,252,255,0.55)');
+		spike.addColorStop(1, 'rgba(160,240,255,0)');
+		g.fillStyle = spike;
+		if (horizontal) g.fillRect(0, s / 2 - 2, s, 4);
+		else g.fillRect(s / 2 - 2, 0, 4, s);
 	}
+	const tex = new THREE.CanvasTexture(cv);
+	tex.colorSpace = THREE.SRGBColorSpace;
+	return tex;
+}
+
+// A thin circular halo band — the expanding "beat ring" the pulsar emits.
+function makeHaloTexture() {
+	const s = 256;
+	const cv = document.createElement('canvas');
+	cv.width = cv.height = s;
+	const g = cv.getContext('2d');
+	const grad = g.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
+	grad.addColorStop(0.38, 'rgba(45,226,230,0)');
+	grad.addColorStop(0.46, 'rgba(196,250,255,0.85)');
+	grad.addColorStop(0.5, 'rgba(255,120,200,0.35)');
+	grad.addColorStop(0.56, 'rgba(45,226,230,0)');
+	g.fillStyle = grad;
+	g.fillRect(0, 0, s, s);
 	const tex = new THREE.CanvasTexture(cv);
 	tex.colorSpace = THREE.SRGBColorSpace;
 	return tex;
@@ -122,15 +150,35 @@ export class SpaceBackdrop {
 		this.stars.renderOrder = -2;
 		this.root.add(this.stars);
 
-		// outrun sun, low on the horizon
-		this.sun = new THREE.Sprite(new THREE.SpriteMaterial({
-			map: makeSunTexture(), transparent: true, depthWrite: false,
+		// The pulsar — the visible source of the soundtrack's pulse. Its core
+		// kicks and a halo ring races outward on every beat, and it hangs
+		// nearer than the stars so it parallaxes against them as you steer.
+		this.pulsar = new THREE.Group();
+		this._pulsarBase = new THREE.Vector3(-4300, 350, -7200);
+		this._coreScale = 1050;
+		this._corePulse = 0;
+		this.pulsarCore = new THREE.Sprite(new THREE.SpriteMaterial({
+			map: makePulsarCoreTexture(), transparent: true, depthWrite: false,
 			blending: THREE.AdditiveBlending,
 		}));
-		this.sun.scale.setScalar(5200);
-		this.sun.position.set(-4200, -600, -7000);
-		this.sun.renderOrder = -1;
-		this.root.add(this.sun);
+		this.pulsarCore.scale.setScalar(this._coreScale);
+		this.pulsarCore.renderOrder = -1;
+		this.pulsar.add(this.pulsarCore);
+		this._halos = [];
+		const haloTex = makeHaloTexture();
+		for (let i = 0; i < 4; i++) {
+			const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+				map: haloTex, transparent: true, depthWrite: false,
+				blending: THREE.AdditiveBlending, opacity: 0,
+			}));
+			sprite.visible = false;
+			sprite.renderOrder = -1;
+			this.pulsar.add(sprite);
+			this._halos.push({ sprite, t: 1, strength: 0 });
+		}
+		this._nextHalo = 0;
+		this.pulsar.position.copy(this._pulsarBase);
+		this.root.add(this.pulsar);
 
 		// the destination planet — grows from a marble to a monster over the run
 		this.planet = new THREE.Group();
@@ -170,9 +218,39 @@ export class SpaceBackdrop {
 		this.planet.position.set(2400 - progress * 1400, 900 - progress * 500, -8200);
 		this.planet.rotation.y += dt * 0.01;
 		this.nebula.material.uniforms.uBeat.value *= Math.max(0, 1 - dt * 5);
+
+		// Pulsar parallax: offset it against the ship's lateral position so it
+		// drifts across the (infinitely far) starfield as you steer and the
+		// route snakes — the one depth cue in the sky.
+		this.pulsar.position.set(
+			this._pulsarBase.x - shipPos.x * 0.35,
+			this._pulsarBase.y - shipPos.y * 0.35,
+			this._pulsarBase.z
+		);
+
+		// Core kick decay + expanding halo rings.
+		this._corePulse = Math.max(0, this._corePulse - dt * 3.2);
+		this.pulsarCore.scale.setScalar(this._coreScale * (1 + this._corePulse * 0.3));
+		const HALO_LIFE = 1.4; // seconds for a ring to cross the sky and fade
+		for (const h of this._halos) {
+			if (!h.sprite.visible) continue;
+			h.t += dt / HALO_LIFE;
+			if (h.t >= 1) { h.sprite.visible = false; continue; }
+			h.sprite.scale.setScalar(this._coreScale * (0.55 + h.t * 3.4));
+			h.sprite.material.opacity = (1 - h.t) * (1 - h.t) * 0.55 * h.strength;
+		}
 	}
 
 	beatPulse(strength = 1) {
-		this.nebula.material.uniforms.uBeat.value = 0.6 * strength;
+		// The nebula only breathes faintly now — the pulsar carries the beat.
+		this.nebula.material.uniforms.uBeat.value = 0.22 * strength;
+		this._corePulse = Math.max(this._corePulse, strength);
+		const h = this._halos[this._nextHalo];
+		this._nextHalo = (this._nextHalo + 1) % this._halos.length;
+		h.t = 0;
+		h.strength = strength;
+		h.sprite.visible = true;
+		h.sprite.scale.setScalar(this._coreScale * 0.55);
+		h.sprite.material.opacity = 0.55 * strength;
 	}
 }
