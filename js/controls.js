@@ -16,6 +16,7 @@ export class InputState {
 		this.steerY = 0; // W = +1 (climb), S = -1
 
 		this.firing = false;
+		this.painting = false; // RMB held — multilock target painting
 		this.boosting = false;
 		this.braking = false;
 		this.rollLeft = false;
@@ -33,10 +34,14 @@ export class InputState {
 
 		window.addEventListener('mousedown', (e) => {
 			if (e.button === 0) this.firing = true;
+			if (e.button === 2) this.painting = true;
 		});
 		window.addEventListener('mouseup', (e) => {
 			if (e.button === 0) this.firing = false;
+			if (e.button === 2) this.painting = false;
 		});
+		// RMB is the multilock painter, not a browser menu
+		window.addEventListener('contextmenu', (e) => e.preventDefault());
 		window.addEventListener('blur', () => this._releaseAll());
 
 		window.addEventListener('keydown', (e) => this._key(e, true));
@@ -67,7 +72,7 @@ export class InputState {
 	_releaseAll() {
 		this._keys.clear();
 		this.steerX = this.steerY = 0;
-		this.firing = this.boosting = this.braking = false;
+		this.firing = this.painting = this.boosting = this.braking = false;
 		this.rollLeft = this.rollRight = false;
 	}
 }

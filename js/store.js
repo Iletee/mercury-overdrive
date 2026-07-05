@@ -64,6 +64,25 @@ export const CONFIG = {
 	homingTurn: 2.6,         // rad/s bolt steering when locked
 	invulnTime: 1.4,         // s of grace after taking a hit
 
+	// Multilock — the Overdrive Core powerup. Fly through the Core (waiting on
+	// the centerline at the exit of squeeze 1) to unlock: hold RIGHT mouse to
+	// paint targets near the crosshair, release to loose a homing volley that
+	// detonates as an ascending arpeggio. Left-mouse plucks are untouched.
+	coreZ: 26500,            // course distance of the Overdrive Core
+	coreAutoGrantZ: 27600,   // failsafe: absorbed automatically past this
+	coreRadius: 200,         // fly-through claim radius
+	multilockMax: 6,         // total simultaneous paint locks
+	multilockStack: 3,       // max locks stacked on a single target
+	multilockDamage: 3,      // damage per volley missile
+	multilockTurn: 5.0,      // rad/s homing for volley missiles (plucks: 2.6)
+	multilockRegen: 1.5,     // seconds to regain one lock charge
+	multilockRingBonus: 2,   // lock charges per ring threaded
+
+	// The Architect — boss fight before the gate
+	bossStartZ: 54000,       // the Architect engages here (p 0.90)
+	bossArenaSpeed: 150,     // forward speed cap during the fight
+	bossHoldZ: 59200,        // the run never passes this while the boss lives
+
 	// Scoring
 	scoreAsteroid: 50,
 	scoreShard: 500,
@@ -71,13 +90,19 @@ export const CONFIG = {
 	scoreBastion: 1500,
 };
 
-// Enemy waves keyed to run progress (fraction 0..1)
+// Enemy waves keyed to run progress (fraction 0..1). Front half (pre-Core)
+// is the single-lock tutorial; from the Core (p 0.44) on, every wave is a
+// simultaneous/swarm problem that a painted multilock volley answers.
 export const WAVES = [
 	{ at: 0.07, shards: 3, seekers: 0, bastions: 0, text: 'HOSTILES INBOUND' },
 	{ at: 0.19, shards: 0, seekers: 4, bastions: 0, text: 'SEEKERS LAUNCHED' },
 	{ at: 0.31, shards: 2, seekers: 0, bastions: 1, text: 'BASTION DETECTED' },
-	{ at: 0.44, shards: 2, seekers: 5, bastions: 0, text: null },
-	{ at: 0.58, shards: 0, seekers: 0, bastions: 2, text: 'HEAVY RESISTANCE' },
-	{ at: 0.72, shards: 4, seekers: 3, bastions: 0, text: null },
-	{ at: 0.86, shards: 0, seekers: 4, bastions: 1, text: 'FINAL PICKET — GATE AHEAD' },
+	{ at: 0.45, shards: 3, seekers: 4, bastions: 0, text: null },              // fires as the Core is claimed
+	{ at: 0.50, shards: 6, seekers: 0, bastions: 0, text: 'PAINT THE FORMATION' },
+	{ at: 0.57, shards: 0, seekers: 4, bastions: 2, text: 'HEAVY RESISTANCE' },
+	{ at: 0.65, shards: 2, seekers: 3, bastions: 0, text: 'SEEKER SWARM' },
+	{ at: 0.665, shards: 0, seekers: 3, bastions: 0, text: null },             // swarm's second trio, staggered
+	{ at: 0.71, shards: 3, seekers: 0, bastions: 0, text: null },              // inside squeeze 2 — volley-clear
+	{ at: 0.79, shards: 3, seekers: 2, bastions: 1, text: 'FINAL PICKET' },
+	{ at: 0.86, shards: 0, seekers: 0, bastions: 0, text: 'CORE SIGNATURE DETECTED' },
 ];

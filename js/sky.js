@@ -192,7 +192,9 @@ export class SpaceBackdrop {
 		const ring = new THREE.Mesh(
 			new THREE.RingGeometry(1.35, 2.15, 72),
 			new THREE.MeshBasicMaterial({
-				color: Colors.cyan, transparent: true, opacity: 0.28,
+				// modest opacity: by the boss arena the planet fills the sky and
+				// this ring must stay a backdrop, not a searchlight
+				color: Colors.cyan, transparent: true, opacity: 0.16,
 				side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false,
 			})
 		);

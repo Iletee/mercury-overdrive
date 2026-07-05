@@ -221,6 +221,14 @@ export class AsteroidField {
 		this.gate.position.set(0, 0, -CONFIG.courseLength - 200);
 		this.scene.add(this.gate);
 		this._gateRing = ring;
+		this._gateHalo = halo;
+	}
+
+	// The gate sits dark behind the Architect and lights when it falls.
+	setGateLit(on) {
+		this._gateRing.material.color.setHex(on ? Colors.white : Colors.cyan);
+		this._gateHalo.material.opacity = on ? 0.35 : 0.1;
+		this._gateHalo.material.color.setHex(on ? Colors.cyan : Colors.cyan);
 	}
 
 	_spawnChunk(index) {
@@ -229,6 +237,8 @@ export class AsteroidField {
 		const z0 = -index * D;
 		const frac = Math.min(1, (index * D) / CONFIG.courseLength);
 		if (frac >= 1) { this.chunks.set(index, []); return; } // clear space past the gate
+		// the boss arena is swept clean — dodging is about the Architect, not rocks
+		if (index * D >= CONFIG.bossStartZ) { this.chunks.set(index, []); return; }
 
 		const records = [];
 		let count = Math.round(18 + 34 * Math.sin(Math.min(1, frac * 1.15) * Math.PI * 0.5) * (0.75 + 0.5 * rng()));
@@ -409,5 +419,6 @@ export class AsteroidField {
 			}
 		}
 		this._ringMesh.instanceColor.needsUpdate = true;
+		this.setGateLit(false);
 	}
 }

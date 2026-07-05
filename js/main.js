@@ -18,6 +18,7 @@ import { FXSystem } from './fx.js';
 import { MicroDebris } from './debris.js';
 import { SynthwaveEngine } from './music.js';
 import { HUD } from './hud.js';
+import { ArchitectBoss } from './boss.js';
 
 const State = { TITLE: 0, PLAYING: 1, GAMEOVER: 2, VICTORY: 3 };
 
@@ -30,6 +31,9 @@ let scoreMult = 1;
 let multTimer = 0;
 let prevShipZ = 0;
 let hitstop = 0; // brief time-dilation on kills — makes hits land
+let coreClaimed = false;    // the Overdrive Core (multilock + lead unlock)
+let coreTelegraphed = false;
+let bossEngaged = false;
 
 // --- renderer / scene / camera -------------------------------------------
 const container = document.getElementById('world');
@@ -70,6 +74,32 @@ const weapons = new WeaponSystem(scene, camera, ship, field);
 const enemies = new EnemyManager(scene, ship, weapons);
 const fx = new FXSystem(scene, camera);
 const debris = new MicroDebris(scene);
+const boss = new ArchitectBoss(scene, ship, weapons, enemies, fx);
+
+// --- the Overdrive Core: the multilock powerup, waiting on the centerline
+// at the exit of squeeze 1. Fly through it to claim.
+const core = new THREE.Group();
+const coreInner = new THREE.Mesh(
+	new THREE.OctahedronGeometry(48, 0),
+	new THREE.MeshStandardMaterial({
+		color: 0x12081f, roughness: 0.3, metalness: 0.7, flatShading: true,
+		emissive: Colors.white, emissiveIntensity: 0.9,
+	})
+);
+const coreInnerEdges = new THREE.LineSegments(
+	new THREE.EdgesGeometry(coreInner.geometry),
+	new THREE.LineBasicMaterial({ color: Colors.white, transparent: true, opacity: 0.95 })
+);
+const coreOuter = new THREE.LineSegments(
+	new THREE.EdgesGeometry(new THREE.IcosahedronGeometry(70, 0)),
+	new THREE.LineBasicMaterial({ color: Colors.cyan, transparent: true, opacity: 0.8 })
+);
+core.add(coreInner, coreInnerEdges, coreOuter);
+{
+	const c = field.routeCenters(CONFIG.coreZ)[0];
+	core.position.set(c.x, c.y, -CONFIG.coreZ);
+}
+scene.add(core);
 
 // --- event wiring ------------------------------------------------------------
 // the ascending shot melody, made visible: each shot climbs the palette,
@@ -90,10 +120,10 @@ weapons.events.onLockChange = (lockState) => {
 	if (lockState === 'locked') music.lockOn();
 };
 
-weapons.events.onEnemyHit = (e, point) => {
+weapons.events.onEnemyHit = (e, point, dmg = 1) => {
 	fx.spawnHitSpark(point, e.color);
-	if (enemies.damage(e, 1)) {
-		const big = e.type === 'bastion';
+	if (enemies.damage(e, dmg)) {
+		const big = e.type === 'bastion' || e.type === 'bosscore';
 		fx.spawnExplosion(e.position, e.color, big ? 3 : 1.5);
 		fx.spawnShockwave(e.position, e.color, big ? 3 : 1.3);
 		hitstop = big ? 0.1 : 0.06;
@@ -102,6 +132,10 @@ weapons.events.onEnemyHit = (e, point) => {
 		addScore(e.score);
 	}
 };
+
+// multilock: each paint is a note walking up the scale; the volley strums
+weapons.events.onPaint = (k) => music.multilockPaint(k);
+weapons.events.onVolley = (n) => music.multilockVolley(n);
 
 weapons.events.onAsteroidHit = (rec, point) => {
 	fx.spawnHitSpark(point, Colors.cyan);
@@ -132,6 +166,32 @@ enemies.events.onEnemyShoot = (e) => {
 	if (e.position.distanceTo(ship.position) < 1800) music.enemyShoot();
 };
 
+// --- the Architect (boss) ----------------------------------------------------
+boss.events.onPhase = (n) => {
+	music.bossPhase(n);
+	hud.showWave(n === 2 ? 'CORE EXPOSED' : 'ARCHITECT OVERLOAD');
+};
+boss.events.onPlayerHit = () => {
+	ship.shake(0.7);
+	hurtPlayer();
+};
+boss.events.onShoot = () => music.enemyShoot();
+boss.events.onNodeDown = (remaining) => {
+	if (remaining > 0) hud.showWave(`SHIELD LATTICE ${remaining}/6`);
+};
+boss.events.onDefeated = () => {
+	music.setBoss(false);
+	music.explosion(true);
+	music.gateChime();
+	hitstop = 0.3;
+	ship.shake(1.5);
+	ship.speedCap = null;
+	field.setGateLit(true);
+	hud.hideBoss();
+	hud.showWave('ARCHITECT DEREZZED — GATE OPEN');
+	addScore(10000);
+};
+
 music.onBeat(({ beat, bar }) => {
 	if (state !== State.PLAYING) return;
 	// The pulsar in the sky is the visible source of the beat (big halo ring
@@ -143,7 +203,27 @@ music.onBeat(({ beat, bar }) => {
 	hud.beatPulse();
 	enemies.beatPulse();
 	if (beat % 2 === 0) ship.beatPulse();
+	if (bossEngaged && !boss.defeated) boss.beat(beat, bar);
 });
+
+function claimCore(auto) {
+	coreClaimed = true;
+	core.visible = false;
+	weapons.multilockEnabled = true;
+	weapons.lockCharge = CONFIG.multilockMax;
+	// the lead instrument is the Core's sonic reward — it sings from here on
+	music.setLeadUnlocked(true);
+	music.gateChime();
+	fx.spawnShockwave(core.position, Colors.white, 4);
+	fx.spawnExplosion(core.position, Colors.cyan, 2.5);
+	hitstop = 0.15;
+	ship.shake(0.6);
+	hud.showMultilock();
+	hud.showWave(auto ? 'OVERDRIVE CORE ABSORBED' : 'OVERDRIVE CORE CLAIMED');
+	setTimeout(() => {
+		if (state === State.PLAYING) hud.showWave('HOLD RIGHT MOUSE TO PAINT — RELEASE TO VOLLEY');
+	}, 2300);
+}
 
 function addScore(n) {
 	score += n * scoreMult;
@@ -186,6 +266,11 @@ function restart() {
 	field.reset();
 	enemies.reset();
 	weapons.reset();
+	boss.reset();
+	bossEngaged = false;
+	coreClaimed = false;
+	coreTelegraphed = false;
+	core.visible = true;
 	score = 0;
 	elapsed = 0;
 	waveIndex = 0;
@@ -194,9 +279,14 @@ function restart() {
 	multTimer = 0;
 	prevShipZ = 0;
 	hud.setStreak(0, 1);
+	hud.hideMultilock();
+	hud.hideBoss();
+	hud.setPaintMarks([]);
 	camera.position.set(0, 13, 46);
 	camera.quaternion.identity();
 	music.setIntensity(1);
+	music.setLeadUnlocked(false);
+	music.setBoss(false);
 	startRun();
 }
 
@@ -210,6 +300,7 @@ function endGame(won) {
 	} else {
 		state = State.GAMEOVER;
 		hud.setPings([]);
+		hud.setPaintMarks([]);
 		fx.spawnExplosion(ship.position, Colors.cyan, 3);
 		music.explosion(true);
 		music.gameOverSting();
@@ -229,6 +320,39 @@ function updatePlaying(dt) {
 	ship.updateCamera(camera, dt);
 	field.update(dt, ship.position.z);
 	enemies.update(dt);
+
+	// the Overdrive Core: fly through it to claim; auto-absorbed just past it
+	// so the back half (designed around the multilock) is never unsolvable
+	if (!coreClaimed) {
+		core.rotation.y += dt * 0.8;
+		core.rotation.x -= dt * 0.3;
+		coreOuter.rotation.z += dt * 0.6;
+		if (!coreTelegraphed && ship.progressZ > CONFIG.coreZ - 1600) {
+			coreTelegraphed = true;
+			hud.showWave('OVERDRIVE CORE AHEAD');
+		}
+		if (ship.position.distanceTo(core.position) < CONFIG.coreRadius) claimCore(false);
+		else if (ship.progressZ > CONFIG.coreAutoGrantZ) claimCore(true);
+	}
+
+	// the Architect: engages before the gate; the run holds until it falls
+	if (!bossEngaged && ship.progressZ >= CONFIG.bossStartZ) {
+		bossEngaged = true;
+		boss.engage(ship.position.z);
+		ship.speedCap = CONFIG.bossArenaSpeed;
+		music.setBoss(true);
+		hud.showBoss('THE ARCHITECT');
+		hud.showWave('THE ARCHITECT');
+	}
+	if (bossEngaged) {
+		boss.update(dt);
+		if (!boss.defeated) {
+			hud.setBossHp(boss.hpFraction);
+			// never reach the gate while the boss lives
+			if (ship.progressZ > CONFIG.bossHoldZ) ship.position.z = -CONFIG.bossHoldZ;
+		}
+	}
+
 	weapons.update(dt, input, enemies.active);
 	fx.update(dt, ship.speed, ship.position);
 	debris.update(dt, ship.position, ship.speed);
@@ -264,6 +388,11 @@ function updatePlaying(dt) {
 			if (music.ringChime) music.ringChime(ringStreak);
 			_ringPos.set(ringEvt.x, ringEvt.y, -ringEvt.p);
 			fx.spawnHitSpark(_ringPos, Colors.cyan);
+			// route mastery feeds firepower: rings top up the multilock bank
+			if (weapons.multilockEnabled) {
+				weapons.lockCharge = Math.min(CONFIG.multilockMax,
+					weapons.lockCharge + CONFIG.multilockRingBonus);
+			}
 			if (ringStreak === 3) { ship.boost = CONFIG.boostMax; hud.showWave('BOOST RESTORED'); }
 			if (ringStreak === 6 && !ship.shieldReady) { ship.restoreShield(); hud.showWave('SHIELD RESTORED'); }
 			if (ringStreak >= 10) {
@@ -282,10 +411,12 @@ function updatePlaying(dt) {
 	}
 
 	// waves keyed to progress; clean flying earns an escort of bonus targets
+	// (a lighter escort in the multilock half, where waves are already dense)
 	const p = progress();
 	while (waveIndex < WAVES.length && p >= WAVES[waveIndex].at) {
 		const w = WAVES[waveIndex];
-		const spec = ringStreak >= 6 ? { ...w, shards: (w.shards || 0) + 2 } : w;
+		const bonus = p < 0.44 ? 2 : 1;
+		const spec = ringStreak >= 6 ? { ...w, shards: (w.shards || 0) + bonus } : w;
 		enemies.spawnWave(spec);
 		if (w.text) hud.showWave(w.text);
 		waveIndex += 1;
@@ -296,11 +427,11 @@ function updatePlaying(dt) {
 	sunLight.target.position.copy(ship.position);
 
 	// HUD
-	// the soundtrack tracks the run: course thirds change the section, and
-	// live enemies each contribute their own motif layer. Intensity is
-	// front-loaded — the riff (the hook) arrives seconds in, not a minute
+	// the soundtrack BUILDS across the run: pad+kick at launch, the riff at
+	// p 0.05, the full band at 0.30 — and the lead only enters when the
+	// Overdrive Core is claimed (see claimCore). Sections still track thirds.
 	music.setSection(Math.min(2, Math.floor(p * 3)));
-	music.setIntensity(p > 0.35 ? 3 : (p > 0.015 ? 2 : 1));
+	music.setIntensity(p > 0.30 ? 3 : (p > 0.05 ? 2 : 1));
 	_presence.shard = _presence.seeker = _presence.bastion = 0;
 	for (const e of enemies.active) _presence[e.type] += 1;
 	music.setPresence(_presence);
@@ -309,11 +440,13 @@ function updatePlaying(dt) {
 	hud.setBoost(ship.boost / CONFIG.boostMax);
 	hud.setProgress(p);
 	hud.setShield(ship.shieldReady ? 1 : ship.shieldTimer / CONFIG.shieldRecharge, ship.shieldReady);
+	if (weapons.multilockEnabled) hud.setLockCharge(weapons.lockCharge, CONFIG.multilockMax);
+	hud.setPaintMarks(weapons.paintMarks);
 	if (weapons.lockState === 'none') hud.hideLock();
 	else hud.setLock(weapons.lockPx.x, weapons.lockPx.y, weapons.lockState === 'locked');
 	updatePings();
 
-	if (p >= 1) endGame(true);
+	if (p >= 1 && (!bossEngaged || boss.defeated)) endGame(true);
 }
 
 function updateIdle(dt) {
@@ -391,4 +524,4 @@ window.addEventListener('resize', () => {
 loop();
 
 // debug handle for automated testing
-window.__mo = { field, ship, enemies, weapons, music, backdrop };
+window.__mo = { field, ship, enemies, weapons, music, backdrop, boss, input, core };

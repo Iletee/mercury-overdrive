@@ -57,6 +57,8 @@ class BoltPool {
 		b.dir.copy(dir).normalize();
 		b.dist = 0;
 		b.target = target;
+		b.turn = 0;   // 0 = default homing rate; volley missiles override
+		b.damage = 1;
 		if (colorHex !== null && this._tint) {
 			this._tint.setHex(colorHex);
 			this.mesh.setColorAt(b.slot, this._tint);
@@ -106,11 +108,24 @@ export class WeaponSystem {
 			onAsteroidHit: () => {},
 			onPlayerHit: () => {},
 			onLockChange: () => {},
+			onPaint: () => {},   // (k) — k-th multilock tag added (0-based)
+			onVolley: () => {},  // (n) — volley released with n missiles
 		};
 
 		this.lockTarget = null;
 		this.lockState = 'none'; // none | tracking | locked
 		this.lockPx = { x: 0, y: 0 };
+
+		// Multilock (Overdrive Core powerup): RMB paints up to multilockMax
+		// locks (stacking to multilockStack per target); release volleys one
+		// hard-homing missile per lock. Charge regenerates; rings top it up.
+		this.multilockEnabled = false;
+		this.lockCharge = 0;
+		this.painted = [];      // [{ target, stacks }] in tag order
+		this.paintMarks = [];   // screen-space marks for the HUD, rebuilt per frame
+		this._volleyQueue = []; // staggered launches → detonation arpeggio
+		this._volleyTimer = 0;
+		this._tagCooldown = 0;
 
 		this._cooldown = 0;
 		this._steer = new THREE.Vector3();
@@ -123,6 +138,7 @@ export class WeaponSystem {
 
 	update(dt, input, enemies) {
 		this._updateLock(input, enemies);
+		this._updateMultilock(dt, input, enemies);
 		this._updateFire(dt, input);
 		this._movePlayerBolts(dt, enemies);
 		this._moveEnemyBolts(dt);
@@ -149,6 +165,98 @@ export class WeaponSystem {
 		this.lockTarget = best;
 		this.lockState = best ? (bestPx < CONFIG.lockSnapPx ? 'locked' : 'tracking') : 'none';
 		if (this.lockState !== prevState) this.events.onLockChange(this.lockState);
+	}
+
+	// ---- Multilock: paint with RMB, release to volley ------------------
+
+	_updateMultilock(dt, input, enemies) {
+		if (!this.multilockEnabled) return;
+		this.lockCharge = Math.min(CONFIG.multilockMax, this.lockCharge + dt / CONFIG.multilockRegen);
+		this._tagCooldown -= dt;
+
+		// targets can die (or despawn) while painted
+		if (this.painted.length) this.painted = this.painted.filter((p) => p.target.alive);
+
+		if (input.painting && this.ship.alive) {
+			this._paint(input, enemies);
+		} else if (this.painted.length) {
+			this._releaseVolley();
+		}
+
+		// rebuild the HUD paint marks (screen px + stack count per target)
+		this.paintMarks.length = 0;
+		const w = window.innerWidth, h = window.innerHeight;
+		for (const p of this.painted) {
+			this._proj.copy(p.target.position).project(this.camera);
+			if (this._proj.z > 1) continue;
+			this.paintMarks.push({
+				x: (this._proj.x * 0.5 + 0.5) * w,
+				y: (-this._proj.y * 0.5 + 0.5) * h,
+				stacks: p.stacks,
+			});
+		}
+
+		// staggered launches: one missile per tick so impacts arpeggiate
+		if (this._volleyQueue.length) {
+			this._volleyTimer -= dt;
+			while (this._volleyQueue.length && this._volleyTimer <= 0) {
+				this._launchVolleyBolt(this._volleyQueue.shift());
+				this._volleyTimer += 0.09;
+			}
+		}
+	}
+
+	_paint(input, enemies) {
+		if (this._tagCooldown > 0) return; // paced tagging — a sweep, not a dump
+		let total = 0;
+		for (const p of this.painted) total += p.stacks;
+		if (total >= Math.min(CONFIG.multilockMax, Math.floor(this.lockCharge))) return;
+
+		const w = window.innerWidth, h = window.innerHeight;
+		for (const e of enemies) {
+			if (!e.alive) continue;
+			this._proj.copy(e.position).project(this.camera);
+			if (this._proj.z > 1) continue;
+			const sx = (this._proj.x * 0.5 + 0.5) * w;
+			const sy = (-this._proj.y * 0.5 + 0.5) * h;
+			if (Math.hypot(sx - input.mousePxX, sy - input.mousePxY) > CONFIG.lockRangePx) continue;
+			if (e.position.distanceTo(this.ship.position) > 4500) continue;
+			let entry = this.painted.find((p) => p.target === e);
+			if (entry && entry.stacks >= CONFIG.multilockStack) continue;
+			if (!entry) { entry = { target: e, stacks: 0 }; this.painted.push(entry); }
+			entry.stacks += 1;
+			this._tagCooldown = 0.11;
+			this.events.onPaint(total); // total-before = ascending note index
+			break; // one tag per pass — sweep the cursor to keep painting
+		}
+	}
+
+	_releaseVolley() {
+		let n = 0;
+		for (const p of this.painted) n += p.stacks;
+		if (n > 0) {
+			this.lockCharge = Math.max(0, this.lockCharge - n);
+			// launch in tag order — the detonations replay the painted melody
+			for (const p of this.painted) {
+				for (let s = 0; s < p.stacks; s++) this._volleyQueue.push(p.target);
+			}
+			this._volleyTimer = 0;
+			this.events.onVolley(n);
+		}
+		this.painted.length = 0;
+	}
+
+	_launchVolleyBolt(target) {
+		if (!this.ship.alive) return;
+		this.ship.forward(this._steer);
+		this._steer.x += (Math.random() - 0.5) * 1.2;
+		this._steer.y += (Math.random() - 0.5) * 1.2;
+		this._steer.normalize();
+		this.ship.forward(this._nose);
+		this._nose.multiplyScalar(16).add(this.ship.position);
+		const b = this.player.spawn(this._nose, this._steer,
+			target && target.alive ? target : null, Colors.pink);
+		if (b) { b.turn = CONFIG.multilockTurn; b.damage = CONFIG.multilockDamage; }
 	}
 
 	_updateFire(dt, input) {
@@ -179,7 +287,7 @@ export class WeaponSystem {
 			// homing: bend toward the locked target
 			if (b.target && b.target.alive) {
 				this._steer.copy(b.target.position).sub(b.pos).normalize();
-				const maxTurn = CONFIG.homingTurn * dt;
+				const maxTurn = (b.turn || CONFIG.homingTurn) * dt;
 				const angle = b.dir.angleTo(this._steer);
 				if (angle > 1e-4) {
 					const t = Math.min(1, maxTurn / angle);
@@ -196,7 +304,7 @@ export class WeaponSystem {
 				for (const e of enemies) {
 					if (!e.alive) continue;
 					if (this._segSphere(b.prev, b.pos, e.position, e.radius + 3)) {
-						this.events.onEnemyHit(e, b.pos);
+						this.events.onEnemyHit(e, b.pos, b.damage || 1);
 						dead = true;
 						break;
 					}
@@ -258,5 +366,10 @@ export class WeaponSystem {
 		this.enemy.flush();
 		this.lockTarget = null;
 		this.lockState = 'none';
+		this.multilockEnabled = false; // the Core must be claimed again
+		this.lockCharge = 0;
+		this.painted.length = 0;
+		this.paintMarks.length = 0;
+		this._volleyQueue.length = 0;
 	}
 }

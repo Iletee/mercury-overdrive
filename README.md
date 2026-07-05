@@ -30,6 +30,7 @@ discrete GPU helps — the whole world blooms.
 | **WASD** / arrows | Steer — the ship banks into turns and recenters on release |
 | **Mouse** | Aim — the crosshair is a free turret cursor, fully decoupled from flight |
 | **Click** (hold) | Fire — bolts converge on the crosshair; near-crosshair enemies lock on, full locks home |
+| **Right mouse** (hold) | **Multilock** (once the Overdrive Core is claimed) — sweep the cursor to paint up to 6 locks, release to volley |
 | **Shift** | Boost (drains the meter; rings refill it) |
 | **X** | Brake — narrows the view into a steadier gun platform |
 | **Q / E** | Barrel roll — sideways dodge with a moment of invulnerability |
@@ -51,6 +52,16 @@ discrete GPU helps — the whole world blooms.
   Shards (strafing formation drones that fire on the beat), Seekers
   (kamikaze pursuers), Bastions (heavy burst-fire turrets). Radar pings
   flag them on screen and point at them from the edges when they're not.
+- **The Overdrive Core** waits at the exit of the first squeeze (~44%):
+  fly through it to unlock the **Rez-style multilock** — hold right mouse
+  and sweep the cursor to paint up to 6 locks (stack up to 3 on one heavy),
+  release to loose a homing volley that detonates as an ascending arpeggio.
+  Lock charge regenerates and rings top it up; the back half of the run is
+  built around it — formations, mixed heavies, seeker swarms.
+- **THE ARCHITECT** guards the gate: a three-phase wireframe boss. Strip
+  its orbiting shield lattice (one painted volley takes all six nodes),
+  then break the exposed core through vent windows, beam sweeps, novas,
+  and seeker pressure. The gate lights when it falls.
 - **One-charge shield** absorbs the next hit and recharges in ~9 s (the
   cyan meter hums when armed). Hull takes five.
 
@@ -61,14 +72,19 @@ wired to it:
 
 - Player shots are **beat-quantized plucks walking an ascending pentatonic**
   — hold fire and you play melodies. The bolt colors climb with the notes.
+  Multilock painting walks the same scale an octave up, and the volley
+  release strums it.
 - Ring streaks play **rising FM bells**; locks, explosions, and wave events
-  all land on the grid (hull damage alone is instant — danger can't wait).
+  all land on the grid (hull damage alone is instant — danger can't wait,
+  but it hurts *in key*: a falling E-minor arpeggio over a thump).
 - **Each live enemy type adds its own motif** to the mix: shards a glassy
   arp, seekers an urgent ostinato, bastions a dark drone and downbeat stab.
-- The arrangement follows the run — three **sections** switch with course
-  progress, each with its own chord loop and rotating riff variants, plus a
-  supersaw lead that plays call-and-response phrases on alternating 8-bar
-  phrases.
+  The Architect brings its own low ostinato that doubles into a gallop in
+  its final phase.
+- The arrangement **builds across the run** — pad and kick at launch, the
+  riff at 5%, the full band at 30% — and the lead voice (a warm FM
+  electric-piano pluck) stays silent until you claim the Overdrive Core:
+  the melody is the powerup's reward.
 - Every kick **sidechain-ducks** the mix, and the beat has a visible source:
   a **pulsar** on the horizon kicks on every beat and throws an expanding
   halo ring across the starfield on the downbeat (it hangs nearer than the
@@ -84,7 +100,8 @@ wired to it:
 | `js/ship.js` | Flight model, chase camera, barrel rolls, shield, procedural ship |
 | `js/field.js` | Seeded chunked asteroid field, route/fork system, collectible rings |
 | `js/enemies.js` | Shard / Seeker / Bastion behaviors |
-| `js/weapons.js` | Pooled bolts, crosshair-ray aiming, lock-on homing, shot colors |
+| `js/boss.js` | THE ARCHITECT — shield lattice, beam sweeps, vents, novas, derez |
+| `js/weapons.js` | Pooled bolts, crosshair-ray aiming, lock-on homing, multilock paint/volley |
 | `js/music.js` | The procedural audio engine — transport, sections, motifs, all SFX |
 | `js/fx.js` | Speed-lines, explosions, shockwaves, hit sparks (all pooled) |
 | `js/debris.js` | Micrometeors whipping past the canopy |

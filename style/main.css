@@ -106,10 +106,12 @@ html, body {
    Ambient overlay: scanlines + vignette + damage flash
    ========================================================================== */
 
+/* Scanlines + vignette sit BELOW the HUD (z 40): they grade the 3D scene,
+   not the instruments — over the HUD they made corner text unreadably dark. */
 .mo-scanlines {
 	position: fixed;
 	inset: 0;
-	z-index: 200;
+	z-index: 20;
 	pointer-events: none;
 	background: repeating-linear-gradient(
 		to bottom,
@@ -125,7 +127,7 @@ html, body {
 .mo-vignette {
 	position: fixed;
 	inset: 0;
-	z-index: 201;
+	z-index: 21;
 	pointer-events: none;
 	background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0) 45%, rgba(2, 0, 8, 0.75) 100%);
 }
@@ -324,6 +326,126 @@ html, body {
 @keyframes mo-shield-hum {
 	from { box-shadow: 0 0 8px var(--cyan-soft); filter: brightness(1); }
 	to { box-shadow: 0 0 18px var(--cyan); filter: brightness(1.35); }
+}
+
+/* ==========================================================================
+   Multilock charge (appears when the Overdrive Core is claimed)
+   ========================================================================== */
+
+.mo-multilock {
+	margin-top: 10px;
+	transition: opacity 0.4s ease;
+}
+
+.mo-multilock--hidden {
+	display: none;
+}
+
+.mo-multilock__cells {
+	display: flex;
+	gap: 4px;
+	margin-top: 4px;
+}
+
+.mo-multilock__cell {
+	flex: 1;
+	height: 10px;
+	background: rgba(255, 56, 100, 0.08);
+	border: 1px solid rgba(255, 56, 100, 0.4);
+	clip-path: polygon(15% 0, 100% 0, 85% 100%, 0 100%);
+	transition: background 0.12s ease, box-shadow 0.12s ease;
+}
+
+.mo-multilock__cell.lit {
+	background: var(--pink);
+	border-color: var(--pink);
+	box-shadow: 0 0 8px var(--pink);
+}
+
+/* ==========================================================================
+   Multilock paint reticles
+   ========================================================================== */
+
+.mo-paint {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 34px;
+	height: 34px;
+	pointer-events: none;
+	will-change: transform;
+}
+
+.mo-paint--hidden {
+	display: none;
+}
+
+.mo-paint__box {
+	position: absolute;
+	inset: 0;
+	border: 2px solid var(--pink);
+	transform: rotate(45deg);
+	box-shadow: 0 0 10px var(--pink-soft), inset 0 0 6px var(--pink-soft);
+	animation: mo-paint-spin 1.6s linear infinite;
+}
+
+@keyframes mo-paint-spin {
+	from { transform: rotate(45deg); }
+	to { transform: rotate(405deg); }
+}
+
+.mo-paint__n {
+	position: absolute;
+	top: -16px;
+	left: 50%;
+	transform: translateX(-50%);
+	font-size: 11px;
+	letter-spacing: 1px;
+	color: var(--pink-text);
+	text-shadow: 0 0 6px var(--pink);
+}
+
+/* ==========================================================================
+   Boss health bar — top centre, under the progress bar
+   ========================================================================== */
+
+.mo-boss {
+	position: absolute;
+	top: 64px;
+	left: 50%;
+	transform: translateX(-50%);
+	width: min(46vw, 520px);
+	text-align: center;
+	transition: opacity 0.5s ease;
+}
+
+.mo-boss--hidden {
+	display: none;
+}
+
+.mo-boss__name {
+	font-size: 13px;
+	letter-spacing: 6px;
+	color: var(--pink-text);
+	text-shadow: 0 0 10px var(--pink), 0 0 22px var(--pink-soft);
+	margin-bottom: 5px;
+}
+
+.mo-boss__track {
+	height: 8px;
+	border: 1px solid var(--pink);
+	background: rgba(255, 56, 100, 0.08);
+	box-shadow: 0 0 12px var(--pink-soft);
+	overflow: hidden;
+}
+
+.mo-boss__fill {
+	height: 100%;
+	width: 100%;
+	transform-origin: left center;
+	background: linear-gradient(90deg, var(--pink), var(--orange));
+	box-shadow: 0 0 10px var(--pink);
+	transition: transform 0.15s ease;
 }
 
 .mo-boost--full .mo-boost__fill {

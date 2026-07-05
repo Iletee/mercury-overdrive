@@ -56,6 +56,8 @@ export class HUD {
 		this._buildCrosshair();
 		this._buildLock();
 		this._buildPings();
+		this._buildPaintMarks();
+		this._buildBossBar();
 		this._buildWave();
 		this._buildTitle();
 		this._buildEndScreen();
@@ -118,10 +120,37 @@ export class HUD {
 		shield.appendChild(shieldTrack);
 		wrap.appendChild(shield);
 
+		// multilock charge — hidden until the Overdrive Core is claimed
+		const ml = el('div', 'mo-multilock mo-multilock--hidden');
+		ml.appendChild(el('div', 'mo-hud-label mo-hud-label--sm', 'MULTILOCK'));
+		const cells = el('div', 'mo-multilock__cells');
+		this._lockCellEls = [];
+		for (let i = 0; i < 6; i++) {
+			const c = el('div', 'mo-multilock__cell');
+			cells.appendChild(c);
+			this._lockCellEls.push(c);
+		}
+		ml.appendChild(cells);
+		wrap.appendChild(ml);
+
 		this.hullContainerEl = wrap;
 		this.boostContainerEl = boost;
 		this.shieldContainerEl = shield;
+		this.multilockEl = ml;
 		this.rootEl.appendChild(wrap);
+	}
+
+	showMultilock() { this.multilockEl.classList.remove('mo-multilock--hidden'); }
+	hideMultilock() { this.multilockEl.classList.add('mo-multilock--hidden'); }
+
+	// charge in whole locks (0..max); lit cells = banked volley missiles
+	setLockCharge(charge, max) {
+		const lit = Math.floor(Math.max(0, Math.min(max, charge)));
+		if (lit === this._lastLockCharge) return;
+		this._lastLockCharge = lit;
+		for (let i = 0; i < this._lockCellEls.length; i++) {
+			this._lockCellEls[i].classList.toggle('lit', i < lit);
+		}
 	}
 
 	// t: 0..1 recharge progress; ready: shield armed
@@ -238,6 +267,62 @@ export class HUD {
 		}
 	}
 
+	_buildPaintMarks() {
+		// pooled multilock paint reticles — pink brackets with a stack count
+		this._paintEls = [];
+		for (let i = 0; i < 6; i++) {
+			const mark = el('div', 'mo-paint mo-paint--hidden');
+			mark.appendChild(el('div', 'mo-paint__box'));
+			const n = el('div', 'mo-paint__n', '');
+			mark.appendChild(n);
+			mark._n = n;
+			this.rootEl.appendChild(mark);
+			this._paintEls.push(mark);
+		}
+	}
+
+	// marks: [{x, y, stacks}] in screen px
+	setPaintMarks(marks) {
+		for (let i = 0; i < this._paintEls.length; i++) {
+			const elp = this._paintEls[i];
+			const m = marks[i];
+			if (!m) {
+				if (!elp.classList.contains('mo-paint--hidden')) elp.classList.add('mo-paint--hidden');
+				continue;
+			}
+			elp.classList.remove('mo-paint--hidden');
+			elp.style.transform = `translate(-50%, -50%) translate3d(${m.x.toFixed(1)}px, ${m.y.toFixed(1)}px, 0)`;
+			const label = m.stacks > 1 ? '×' + m.stacks : '';
+			if (elp._n.textContent !== label) elp._n.textContent = label;
+		}
+	}
+
+	_buildBossBar() {
+		const wrap = el('div', 'mo-boss mo-boss--hidden');
+		this.bossNameEl = el('div', 'mo-boss__name', '');
+		const track = el('div', 'mo-boss__track');
+		this.bossFillEl = el('div', 'mo-boss__fill');
+		track.appendChild(this.bossFillEl);
+		wrap.appendChild(this.bossNameEl);
+		wrap.appendChild(track);
+		this.bossEl = wrap;
+		this.rootEl.appendChild(wrap);
+	}
+
+	showBoss(name) {
+		this.bossNameEl.textContent = name;
+		this.bossEl.classList.remove('mo-boss--hidden');
+	}
+
+	hideBoss() { this.bossEl.classList.add('mo-boss--hidden'); }
+
+	setBossHp(t) {
+		const ct = Math.max(0, Math.min(1, t));
+		if (ct === this._lastBossHp) return;
+		this._lastBossHp = ct;
+		this.bossFillEl.style.transform = `scaleX(${ct.toFixed(3)})`;
+	}
+
 	_buildWave() {
 		this.waveEl = el('div', 'mo-wave');
 		this.rootEl.appendChild(this.waveEl);
@@ -256,6 +341,7 @@ export class HUD {
 			['WASD', 'steer'],
 			['MOUSE', 'aim'],
 			['CLICK', 'fire'],
+			['RMB', 'multilock'],
 			['SHIFT', 'boost'],
 			['X', 'brake'],
 			['Q/E', 'barrel roll'],

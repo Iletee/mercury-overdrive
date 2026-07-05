@@ -156,6 +156,10 @@ const MELODY_LOOKUP = [MELODY_PHRASE_S0, MELODY_PHRASE_S1, MELODY_PHRASE_S2].map
 const TOM_FILL_STEPS = [8, 10, 12, 14];
 const TOM_FILL_NOTES = [57, 53, 50, 45]; // A3 F3 D3 A2, descending
 
+// Boss ostinato patterns (16th steps within a bar) — see _triggerBossStep.
+const BOSS_OSTINATO = [0, 3, 6, 10, 12];
+const BOSS_OSTINATO_P3 = [0, 2, 3, 6, 8, 10, 12, 14];
+
 // Rez-style ascending E-minor-pentatonic sequences for playerShoot(), one per
 // section so the shot melody always resonates with whichever chord/section
 // is currently playing. All three walk the same E-minor-pentatonic pitch
@@ -249,11 +253,15 @@ export class SynthwaveEngine {
     this._shootIndex = 0;
     this._shootBar = -1;
 
-    // Lead melody voice state (task 1) — set at bar 0 of each 8-bar phrase;
-    // _leadPrevMidi drives note-to-note portamento and is reset at every
-    // phrase boundary so a returning melody never glides in from a stale pitch.
+    // Lead melody voice state — the lead is a REWARD: it stays silent until
+    // setLeadUnlocked(true) (the multilock powerup), then sings on most
+    // phrases (resting every third) as long as intensity >= 2.
     this._melodyActive = false;
-    this._leadPrevMidi = null;
+    this._leadUnlocked = false;
+
+    // Boss underscore state — see setBoss()/bossPhase().
+    this._bossMode = false;
+    this._bossPhase = 1;
 
     // Stateful SFX voices.
     this._boostOn = false;
@@ -326,6 +334,24 @@ export class SynthwaveEngine {
   setSection(n) {
     this._pendingSection = Math.max(0, Math.min(SECTIONS.length - 1, n | 0));
   }
+
+  // Unlock (or re-lock) the lead melody voice — the sonic reward for the
+  // multilock powerup. Unlocking takes effect immediately (the melody picks
+  // up mid-phrase) so the payoff lands the moment it's earned.
+  setLeadUnlocked(on) {
+    this._leadUnlocked = !!on;
+    if (this._leadUnlocked && this._currentIntensity >= 2) this._melodyActive = true;
+    if (!this._leadUnlocked) this._melodyActive = false;
+  }
+
+  // Boss fight underscore: setBoss(true) engages the low ostinato layer;
+  // bossPhase(2|3) escalates it. setBoss(false) on defeat/restart.
+  setBoss(on) {
+    this._bossMode = !!on;
+    if (!on) this._bossPhase = 1;
+  }
+
+  bossPhase(n) { this._bossPhase = Math.max(1, Math.min(3, n | 0)); }
 
   // Live enemy-type counts ({ shard, seeker, bastion }). Safe to call every
   // frame: if the values match what's already pending this is a fast no-op.
@@ -619,8 +645,11 @@ export class SynthwaveEngine {
       this._activeRiffBars = SECTIONS[this._currentSection].riffBarsByVariant[variantIndex];
       // Lead melody (task 1): plays on odd phrases only, rests on even ones
       // so its return reads as an event — see MELODY_PHRASE_* above.
-      this._melodyActive = this._currentIntensity >= 2 && (phraseIndex % 2 === 1);
-      if (phraseBar === 0) this._leadPrevMidi = null; // fresh phrase: no stale portamento
+      // Lead melody: earned via setLeadUnlocked (the multilock powerup).
+      // Once unlocked it sings two phrases out of three — the rest keeps
+      // its return an event instead of wallpaper.
+      this._melodyActive = this._leadUnlocked && this._currentIntensity >= 2
+        && (phraseIndex % 3 !== 2);
       this._applyIntensityGains(time);
       this._applyPresenceGains(time);
       this._updatePadChord(this._activeChordRoots[phraseBar], time);
@@ -672,6 +701,26 @@ export class SynthwaveEngine {
       this._triggerBastionStab(phraseBar, time);
       if (bar % 2 === 0) this._triggerBastionSwell(time);
     }
+
+    // Boss mode: a dark low-E ostinato hammering under everything —
+    // syncopated in phases 1-2, doubled to a relentless gallop in phase 3.
+    if (this._bossMode && lvl >= 1) this._triggerBossStep(step, time);
+  }
+
+  // Syncopated low-register pulse through the pump bus (ducks on the kick).
+  _triggerBossStep(step, time) {
+    const steps = this._bossPhase >= 3 ? BOSS_OSTINATO_P3 : BOSS_OSTINATO;
+    if (!steps.includes(step)) return;
+    const ctx = this.ctx;
+    const o = ctx.createOscillator(); o.type = 'square'; o.frequency.value = noteFreq(28); // E1
+    const o2 = ctx.createOscillator(); o2.type = 'sawtooth'; o2.frequency.value = noteFreq(40); o2.detune.value = 5;
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass';
+    lp.frequency.setValueAtTime(340, time);
+    lp.frequency.exponentialRampToValueAtTime(120, time + 0.12);
+    const g = ctx.createGain();
+    this._pluck(g.gain, dbToGain(-10), 0.004, 0.13, time);
+    o.connect(lp); o2.connect(lp); lp.connect(g); g.connect(this.pumpBus);
+    o.start(time); o2.start(time); o.stop(time + 0.16); o2.stop(time + 0.16);
   }
 
   _applyIntensityGains(time) {
@@ -909,97 +958,66 @@ export class SynthwaveEngine {
     carrier.stop(time + dur + 0.05); modulator.stop(time + dur + 0.05);
   }
 
-  // Lead melody voice — a warm, rounded brass-pad tone: three tightly
-  // detuned saws (±4 cents) over a triangle sub an octave down, through a
-  // soft low-Q lowpass. No drive, no resonant whistle, no hard gate — the
-  // melody should sing over the riff, not fight it. Portamento glides in
-  // from the previous note; longer notes get a delayed, shallow vibrato.
+  // Lead melody voice — FM "digital keys": a struck, bell-warm electric-
+  // piano pluck (sine carrier, harmonic 2:1 modulator whose index decays
+  // fast, plus a quiet octave sparkle). Percussive, round, zero sustain
+  // whine — no saws, no vibrato, no portamento. Two slightly detuned L/R
+  // pairs give it width; the delay/diffusion sends give it space.
   _triggerLeadNote(midi, time, dur, isPeak) {
     const ctx = this.ctx;
     const freq = noteFreq(midi);
-    const prevFreq = this._leadPrevMidi != null ? noteFreq(this._leadPrevMidi) : freq;
-    const velocity = 0.85 + Math.random() * 0.08 + (isPeak ? 0.12 : 0);
-
-    const filterL = ctx.createBiquadFilter(); filterL.type = 'lowpass'; filterL.Q.value = 0.9;
-    const filterR = ctx.createBiquadFilter(); filterR.type = 'lowpass'; filterR.Q.value = 0.9;
-    const cutoff = 750 + velocity * 1500;
-    for (const f of [filterL, filterR]) {
-      f.frequency.setValueAtTime(500, time);
-      f.frequency.linearRampToValueAtTime(cutoff, time + 0.06);
-      f.frequency.setTargetAtTime(cutoff * 0.8, time + 0.09, Math.max(0.2, dur * 0.6));
-    }
-
-    // Three saws, tight unison, split L/R by detune sign for gentle width.
-    const detunes = [-4, 0, 4];
-    const oscs = detunes.map(detune => {
-      const o = ctx.createOscillator();
-      o.type = 'sawtooth'; o.detune.value = detune;
-      o.frequency.setValueAtTime(prevFreq, time);
-      o.frequency.linearRampToValueAtTime(freq, time + 0.05); // ~50ms portamento
-      if (detune <= 0) o.connect(filterL);
-      if (detune >= 0) o.connect(filterR);
-      return o;
-    });
-
-    // Triangle sub an octave down — the warmth under the saws.
-    const sub = ctx.createOscillator();
-    sub.type = 'triangle';
-    sub.frequency.setValueAtTime(prevFreq / 2, time);
-    sub.frequency.linearRampToValueAtTime(freq / 2, time + 0.05);
-    const subGain = ctx.createGain(); subGain.gain.value = 0.5;
-    sub.connect(subGain); subGain.connect(filterL); subGain.connect(filterR);
-    oscs.push(sub);
-
-    // Delayed vibrato on notes >= a half note (8 steps) — fades in after
-    // ~180ms so short notes stay clean.
-    let vibrato = null;
-    if (dur >= SECONDS_PER_16TH * 8 - 0.001) {
-      const lfo = ctx.createOscillator(); lfo.type = 'sine'; lfo.frequency.value = 4.8;
-      const depth = ctx.createGain();
-      depth.gain.setValueAtTime(0, time);
-      depth.gain.setValueAtTime(0, time + 0.18);
-      depth.gain.linearRampToValueAtTime(7, time + 0.35); // ~7 cents depth
-      lfo.connect(depth);
-      for (const o of oscs) depth.connect(o.detune);
-      lfo.start(time);
-      vibrato = lfo;
-    }
-
-    const panL = ctx.createStereoPanner(); panL.pan.value = -0.3;
-    const panR = ctx.createStereoPanner(); panR.pan.value = 0.3;
-    filterL.connect(panL); filterR.connect(panR);
-
+    const velocity = 0.85 + Math.random() * 0.08 + (isPeak ? 0.15 : 0);
     const toneGain = ctx.createGain();
-    const peakAmp = 0.42 * velocity;
-    const attack = 0.05, release = 0.1;
-    const sustainEnd = Math.max(time + attack, time + dur - release);
-    toneGain.gain.setValueAtTime(0.0001, time);
-    toneGain.gain.linearRampToValueAtTime(peakAmp, time + attack);
-    toneGain.gain.setValueAtTime(peakAmp, sustainEnd);
-    toneGain.gain.linearRampToValueAtTime(0.0001, time + dur + 0.04);
-    panL.connect(toneGain); panR.connect(toneGain);
+
+    // One FM pair per stereo side, detuned ±3 cents.
+    for (const [detune, panVal] of [[-3, -0.3], [3, 0.3]]) {
+      const carrier = ctx.createOscillator();
+      carrier.type = 'sine'; carrier.frequency.value = freq; carrier.detune.value = detune;
+      const mod = ctx.createOscillator();
+      mod.type = 'sine'; mod.frequency.value = freq * 2; mod.detune.value = detune;
+      // FM index: bright strike, decays to a soft glow — the "keys" attack.
+      const modDepth = ctx.createGain();
+      modDepth.gain.setValueAtTime(freq * (2.2 + velocity), time);
+      modDepth.gain.exponentialRampToValueAtTime(freq * 0.35, time + 0.16);
+      mod.connect(modDepth); modDepth.connect(carrier.frequency);
+
+      // Quiet octave-up sine — the sparkle on top, decays quickest.
+      const spark = ctx.createOscillator();
+      spark.type = 'sine'; spark.frequency.value = freq * 2; spark.detune.value = detune;
+      const sparkGain = ctx.createGain();
+      sparkGain.gain.setValueAtTime(0.18, time);
+      sparkGain.gain.exponentialRampToValueAtTime(0.002, time + 0.22);
+
+      const pan = ctx.createStereoPanner(); pan.pan.value = panVal;
+      carrier.connect(pan); spark.connect(sparkGain); sparkGain.connect(pan);
+      pan.connect(toneGain);
+
+      const stopAt = time + dur + 0.3;
+      carrier.start(time); mod.start(time); spark.start(time);
+      carrier.stop(stopAt); mod.stop(stopAt); spark.stop(stopAt);
+    }
+
+    // Struck-key amplitude: instant attack, exponential body, note-length
+    // release. Long notes ring like a held e-piano key instead of droning.
+    const peakAmp = 0.5 * velocity;
+    const g = toneGain.gain;
+    g.setValueAtTime(0.0001, time);
+    g.linearRampToValueAtTime(peakAmp, time + 0.006);
+    g.setTargetAtTime(peakAmp * 0.35, time + 0.01, 0.24);
+    g.setTargetAtTime(0.0001, time + dur, 0.07);
     toneGain.connect(this.leadGain);
 
-    // Into the existing delay send...
-    const delaySend = this._gain(ctx, 0.28, this.leadDelay);
+    // Space: the 3/16 delay send...
+    const delaySend = this._gain(ctx, 0.3, this.leadDelay);
     toneGain.connect(delaySend);
-
-    // ...and the diffusion tail — opened gently per note rather than the old
-    // hard '80s gate snap, so the tail blooms instead of chopping.
-    const diffuseSend = this._gain(ctx, 0.4, this.leadDiffuseIn);
+    // ...and a gentle diffusion bloom.
+    const diffuseSend = this._gain(ctx, 0.35, this.leadDiffuseIn);
     toneGain.connect(diffuseSend);
     const gg = this.leadGateGain.gain;
     gg.cancelScheduledValues(time);
     gg.setValueAtTime(0.0001, time);
-    gg.linearRampToValueAtTime(0.4, time + 0.04);
-    gg.setValueAtTime(0.4, time + Math.min(0.2, dur * 0.7));
-    gg.linearRampToValueAtTime(0.0001, time + Math.min(0.55, dur + 0.18));
-
-    const stopAt = time + dur + 0.16;
-    for (const o of oscs) { o.start(time); o.stop(stopAt); }
-    if (vibrato) vibrato.stop(stopAt);
-
-    this._leadPrevMidi = midi;
+    gg.linearRampToValueAtTime(0.4, time + 0.03);
+    gg.setTargetAtTime(0.0001, time + Math.min(0.25, dur), 0.12);
   }
 
   _triggerStab(rootMidi, time) {
@@ -1199,6 +1217,36 @@ export class SynthwaveEngine {
     const t1 = this.quantize(1);
     this._triggerBlip(83, t1);                    // B5
     this._triggerBlip(88, t1 + SECONDS_PER_16TH);  // E6
+  }
+
+  // Multilock painting: the k-th tag is the k-th note of the current
+  // section's pentatonic run, an octave up — sweeping a formation with the
+  // cursor literally plays a run up the scale.
+  multilockPaint(k) {
+    if (!this.ctx) return;
+    const seq = PENTATONIC_SEQUENCES[this._currentSection];
+    this._triggerBlip(seq[Math.min(Math.max(0, k), seq.length - 1)] + 12, this.quantize(1));
+  }
+
+  // Volley release: an ascending strum of the painted notes at 32nd spacing
+  // over a rising noise whoosh; the missiles' impacts land via explosion().
+  multilockVolley(n) {
+    if (!this.ctx) return;
+    const ctx = this.ctx;
+    const t0 = this.quantize(1);
+    const seq = PENTATONIC_SEQUENCES[this._currentSection];
+    for (let i = 0; i < Math.min(n, seq.length); i++) {
+      this._triggerPluck(seq[i] + 12, t0 + i * (SECONDS_PER_16TH / 2), i);
+    }
+    const src = this._noiseSrc();
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 1.2;
+    bp.frequency.setValueAtTime(500, t0);
+    bp.frequency.exponentialRampToValueAtTime(3800, t0 + 0.3);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.3, t0);
+    g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.35);
+    src.connect(bp); bp.connect(g); g.connect(this.sfxBus);
+    src.start(t0); src.stop(t0 + 0.4);
   }
 
   _triggerBlip(midi, time) {

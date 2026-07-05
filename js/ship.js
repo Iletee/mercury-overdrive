@@ -93,6 +93,7 @@ export class PlayerShip {
 		this.quaternion = new THREE.Quaternion();
 		this.yaw = 0; this.pitch = 0; this.roll = 0;
 		this.speed = CONFIG.cruiseSpeed;
+		this.speedCap = null; // set during the boss arena
 		this.boost = CONFIG.boostMax;
 		this.boostEngaged = false;
 		this.hp = CONFIG.playerHp;
@@ -201,6 +202,8 @@ export class PlayerShip {
 		} else {
 			this.boost = Math.min(CONFIG.boostMax, this.boost + CONFIG.boostRegen * dt);
 		}
+		// the boss arena caps forward speed so the fight has room to breathe
+		if (this.speedCap != null) targetSpeed = Math.min(targetSpeed, this.speedCap);
 		this.speed += (targetSpeed - this.speed) * Math.min(1, dt * CONFIG.speedLerp);
 
 		// --- integrate
@@ -309,6 +312,7 @@ export class PlayerShip {
 		this.quaternion.identity();
 		this.group.quaternion.identity();
 		this.speed = CONFIG.cruiseSpeed;
+		this.speedCap = null;
 		this.boost = CONFIG.boostMax;
 		this.hp = CONFIG.playerHp;
 		this.invuln = 0;
