@@ -126,8 +126,6 @@ export class WeaponSystem {
 		this._volleyQueue = []; // staggered launches → detonation arpeggio
 		this._volleyTimer = 0;
 		this._tagCooldown = 0;
-		this._paintViaMouse = false; // how the current paint set was made
-		this._armed = false;         // Ctrl released: locks held, LMB fires
 
 		this._cooldown = 0;
 		this._steer = new THREE.Vector3();
@@ -181,17 +179,8 @@ export class WeaponSystem {
 
 		if (input.painting && this.ship.alive) {
 			this._paint(input, enemies);
-			this._paintViaMouse = input.paintViaMouse;
-			this._armed = false;
-		} else if (this.painted.length && !this._armed) {
-			// RMB release fires immediately; a Ctrl-painted set stays armed
-			// (touchpads can't hold a button and glide) and LMB looses it
-			if (this._paintViaMouse) this._releaseVolley();
-			else this._armed = true;
-		}
-		if (this._armed && this.painted.length && input.firing && this.ship.alive) {
-			this._releaseVolley();
-			this._armed = false;
+		} else if (this.painted.length) {
+			this._releaseVolley(); // let go (RMB or Ctrl) and the volley flies
 		}
 
 		// rebuild the HUD paint marks (screen px + stack count per target)
@@ -382,6 +371,5 @@ export class WeaponSystem {
 		this.painted.length = 0;
 		this.paintMarks.length = 0;
 		this._volleyQueue.length = 0;
-		this._armed = false;
 	}
 }

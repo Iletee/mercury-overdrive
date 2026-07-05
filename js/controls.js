@@ -50,10 +50,6 @@ export class InputState {
 		window.addEventListener('keyup', (e) => this._key(e, false));
 	}
 
-	// true while the paint hold is the mouse button (vs the Ctrl key) — the
-	// weapon system fires RMB volleys on release, Ctrl volleys on next click
-	get paintViaMouse() { return this._paintMouse; }
-
 	onKey(code, cb) {
 		this._keyHandlers.push({ code, cb });
 	}
