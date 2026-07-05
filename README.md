@@ -30,7 +30,7 @@ discrete GPU helps — the whole world blooms.
 | **WASD** / arrows | Steer — the ship banks into turns and recenters on release |
 | **Mouse** | Aim — the crosshair is a free turret cursor, fully decoupled from flight |
 | **Click** (hold) | Fire — bolts converge on the crosshair; near-crosshair enemies lock on, full locks home |
-| **Right mouse / Ctrl** (hold) | **Multilock** (once the Multi-Phaser is claimed) — sweep the cursor to paint up to 6 locks, release to volley |
+| **Right mouse / Ctrl** (hold) | **Multilock** (once the Multi-Phaser is claimed) — sweep the cursor to paint up to 6 locks. Release RMB to volley; with Ctrl the locks stay armed and the next click fires |
 | **Shift** | Boost (drains the meter; rings refill it) |
 | **X** | Brake — narrows the view into a steadier gun platform |
 | **Q / E** | Barrel roll — sideways dodge with a moment of invulnerability |

@@ -221,7 +221,7 @@ function claimPhaser(auto) {
 	hud.showMultilock();
 	hud.showWave(auto ? 'MULTI-PHASER ABSORBED' : 'MULTI-PHASER ONLINE');
 	setTimeout(() => {
-		if (state === State.PLAYING) hud.showWave('HOLD RIGHT MOUSE OR CTRL TO PAINT — RELEASE TO VOLLEY');
+		if (state === State.PLAYING) hud.showWave('PAINT WITH RMB (RELEASE FIRES) OR CTRL (THEN CLICK)');
 	}, 2300);
 }
 
