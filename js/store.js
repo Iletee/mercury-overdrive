@@ -64,13 +64,14 @@ export const CONFIG = {
 	homingTurn: 2.6,         // rad/s bolt steering when locked
 	invulnTime: 1.4,         // s of grace after taking a hit
 
-	// Multilock — the Overdrive Core powerup. Fly through the Core (waiting on
-	// the centerline at the exit of squeeze 1) to unlock: hold RIGHT mouse to
-	// paint targets near the crosshair, release to loose a homing volley that
-	// detonates as an ascending arpeggio. Left-mouse plucks are untouched.
-	coreZ: 26500,            // course distance of the Overdrive Core
-	coreAutoGrantZ: 27600,   // failsafe: absorbed automatically past this
-	coreRadius: 200,         // fly-through claim radius
+	// Multilock — the MULTI-PHASER powerup. Fly through it (waiting on the
+	// centerline at the exit of squeeze 1) to unlock: hold RIGHT mouse or
+	// Ctrl (touchpads) to paint targets near the crosshair, release to loose
+	// a homing volley that detonates as an ascending arpeggio. Left-mouse
+	// plucks are untouched.
+	phaserZ: 26500,          // course distance of the Multi-Phaser pickup
+	phaserAutoGrantZ: 27600, // failsafe: absorbed automatically past this
+	phaserRadius: 200,       // fly-through claim radius
 	multilockMax: 6,         // total simultaneous paint locks
 	multilockStack: 3,       // max locks stacked on a single target
 	multilockDamage: 3,      // damage per volley missile

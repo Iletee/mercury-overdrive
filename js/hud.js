@@ -120,7 +120,7 @@ export class HUD {
 		shield.appendChild(shieldTrack);
 		wrap.appendChild(shield);
 
-		// multilock charge — hidden until the Overdrive Core is claimed
+		// multilock charge — hidden until the Multi-Phaser is claimed
 		const ml = el('div', 'mo-multilock mo-multilock--hidden');
 		ml.appendChild(el('div', 'mo-hud-label mo-hud-label--sm', 'MULTILOCK'));
 		const cells = el('div', 'mo-multilock__cells');
@@ -214,7 +214,7 @@ export class HUD {
 			return;
 		}
 		this.streakEl.textContent =
-			`RINGS ${n}` + (mult > 1 ? `  ·  OVERDRIVE ×${mult}` : '');
+			`RINGS ${n}` + (mult > 1 ? `  ·  SCORE ×${mult}` : '');
 		this.streakEl.classList.toggle('mo-streak--hot', mult > 1);
 	}
 
@@ -341,7 +341,7 @@ export class HUD {
 			['WASD', 'steer'],
 			['MOUSE', 'aim'],
 			['CLICK', 'fire'],
-			['RMB', 'multilock'],
+			['RMB/CTRL', 'multilock'],
 			['SHIFT', 'boost'],
 			['X', 'brake'],
 			['Q/E', 'barrel roll'],

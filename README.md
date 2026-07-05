@@ -30,7 +30,7 @@ discrete GPU helps — the whole world blooms.
 | **WASD** / arrows | Steer — the ship banks into turns and recenters on release |
 | **Mouse** | Aim — the crosshair is a free turret cursor, fully decoupled from flight |
 | **Click** (hold) | Fire — bolts converge on the crosshair; near-crosshair enemies lock on, full locks home |
-| **Right mouse** (hold) | **Multilock** (once the Overdrive Core is claimed) — sweep the cursor to paint up to 6 locks, release to volley |
+| **Right mouse / Ctrl** (hold) | **Multilock** (once the Multi-Phaser is claimed) — sweep the cursor to paint up to 6 locks, release to volley |
 | **Shift** | Boost (drains the meter; rings refill it) |
 | **X** | Brake — narrows the view into a steadier gun platform |
 | **Q / E** | Barrel roll — sideways dodge with a moment of invulnerability |
@@ -43,21 +43,22 @@ discrete GPU helps — the whole world blooms.
   at each split, pink is the right lane and cyan the left, merging again
   downstream. Twice per run the corridor squeezes tight and fills with debris.
 - **Rings are collectible.** Thread them for a streak: **3** refills boost,
-  **6** restores your shield, **10** lights **OVERDRIVE ×2** score for 20
-  seconds — and clean flying draws extra escort targets with the next wave.
-  Miss one and the streak resets.
+  **6** restores your shield, **10** triggers **OVERDRIVE** — double score
+  for 20 seconds — and clean flying draws extra escort targets with the
+  next wave. Miss one and the streak resets.
 - **Everything is destructible.** Asteroid HP scales with size; big rocks
   calve into fragments, and score pays by radius.
 - **Three enemy types** with distinct silhouettes, behaviors, and scores:
   Shards (strafing formation drones that fire on the beat), Seekers
   (kamikaze pursuers), Bastions (heavy burst-fire turrets). Radar pings
   flag them on screen and point at them from the edges when they're not.
-- **The Overdrive Core** waits at the exit of the first squeeze (~44%):
+- **The Multi-Phaser** waits at the exit of the first squeeze (~44%):
   fly through it to unlock the **Rez-style multilock** — hold right mouse
-  and sweep the cursor to paint up to 6 locks (stack up to 3 on one heavy),
-  release to loose a homing volley that detonates as an ascending arpeggio.
-  Lock charge regenerates and rings top it up; the back half of the run is
-  built around it — formations, mixed heavies, seeker swarms.
+  (or Ctrl on a touchpad) and sweep the cursor to paint up to 6 locks
+  (stack up to 3 on one heavy), release to loose a homing volley that
+  detonates as an ascending arpeggio. Lock charge regenerates and rings
+  top it up; the back half of the run is built around it — formations,
+  mixed heavies, seeker swarms.
 - **THE ARCHITECT** guards the gate: a three-phase wireframe boss. Strip
   its orbiting shield lattice (one painted volley takes all six nodes),
   then break the exposed core through vent windows, beam sweeps, novas,
@@ -83,7 +84,7 @@ wired to it:
   its final phase.
 - The arrangement **builds across the run** — pad and kick at launch, the
   riff at 5%, the full band at 30% — and the lead voice (a warm FM
-  electric-piano pluck) stays silent until you claim the Overdrive Core:
+  electric-piano pluck) stays silent until you claim the Multi-Phaser:
   the melody is the powerup's reward.
 - Every kick **sidechain-ducks** the mix, and the beat has a visible source:
   a **pulsar** on the horizon kicks on every beat and throws an expanding

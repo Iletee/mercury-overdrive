@@ -31,8 +31,8 @@ let scoreMult = 1;
 let multTimer = 0;
 let prevShipZ = 0;
 let hitstop = 0; // brief time-dilation on kills — makes hits land
-let coreClaimed = false;    // the Overdrive Core (multilock + lead unlock)
-let coreTelegraphed = false;
+let phaserClaimed = false;  // the Multi-Phaser (multilock + lead unlock)
+let phaserTelegraphed = false;
 let bossEngaged = false;
 
 // --- renderer / scene / camera -------------------------------------------
@@ -76,30 +76,30 @@ const fx = new FXSystem(scene, camera);
 const debris = new MicroDebris(scene);
 const boss = new ArchitectBoss(scene, ship, weapons, enemies, fx);
 
-// --- the Overdrive Core: the multilock powerup, waiting on the centerline
+// --- the Multi-Phaser: the multilock powerup, waiting on the centerline
 // at the exit of squeeze 1. Fly through it to claim.
-const core = new THREE.Group();
-const coreInner = new THREE.Mesh(
+const phaser = new THREE.Group();
+const phaserInner = new THREE.Mesh(
 	new THREE.OctahedronGeometry(48, 0),
 	new THREE.MeshStandardMaterial({
 		color: 0x12081f, roughness: 0.3, metalness: 0.7, flatShading: true,
 		emissive: Colors.white, emissiveIntensity: 0.9,
 	})
 );
-const coreInnerEdges = new THREE.LineSegments(
-	new THREE.EdgesGeometry(coreInner.geometry),
+const phaserInnerEdges = new THREE.LineSegments(
+	new THREE.EdgesGeometry(phaserInner.geometry),
 	new THREE.LineBasicMaterial({ color: Colors.white, transparent: true, opacity: 0.95 })
 );
-const coreOuter = new THREE.LineSegments(
+const phaserOuter = new THREE.LineSegments(
 	new THREE.EdgesGeometry(new THREE.IcosahedronGeometry(70, 0)),
 	new THREE.LineBasicMaterial({ color: Colors.cyan, transparent: true, opacity: 0.8 })
 );
-core.add(coreInner, coreInnerEdges, coreOuter);
+phaser.add(phaserInner, phaserInnerEdges, phaserOuter);
 {
-	const c = field.routeCenters(CONFIG.coreZ)[0];
-	core.position.set(c.x, c.y, -CONFIG.coreZ);
+	const c = field.routeCenters(CONFIG.phaserZ)[0];
+	phaser.position.set(c.x, c.y, -CONFIG.phaserZ);
 }
-scene.add(core);
+scene.add(phaser);
 
 // --- event wiring ------------------------------------------------------------
 // the ascending shot melody, made visible: each shot climbs the palette,
@@ -206,22 +206,22 @@ music.onBeat(({ beat, bar }) => {
 	if (bossEngaged && !boss.defeated) boss.beat(beat, bar);
 });
 
-function claimCore(auto) {
-	coreClaimed = true;
-	core.visible = false;
+function claimPhaser(auto) {
+	phaserClaimed = true;
+	phaser.visible = false;
 	weapons.multilockEnabled = true;
 	weapons.lockCharge = CONFIG.multilockMax;
-	// the lead instrument is the Core's sonic reward — it sings from here on
+	// the lead instrument is the Phaser's sonic reward — it sings from here on
 	music.setLeadUnlocked(true);
 	music.gateChime();
-	fx.spawnShockwave(core.position, Colors.white, 4);
-	fx.spawnExplosion(core.position, Colors.cyan, 2.5);
+	fx.spawnShockwave(phaser.position, Colors.white, 4);
+	fx.spawnExplosion(phaser.position, Colors.cyan, 2.5);
 	hitstop = 0.15;
 	ship.shake(0.6);
 	hud.showMultilock();
-	hud.showWave(auto ? 'OVERDRIVE CORE ABSORBED' : 'OVERDRIVE CORE CLAIMED');
+	hud.showWave(auto ? 'MULTI-PHASER ABSORBED' : 'MULTI-PHASER ONLINE');
 	setTimeout(() => {
-		if (state === State.PLAYING) hud.showWave('HOLD RIGHT MOUSE TO PAINT — RELEASE TO VOLLEY');
+		if (state === State.PLAYING) hud.showWave('HOLD RIGHT MOUSE OR CTRL TO PAINT — RELEASE TO VOLLEY');
 	}, 2300);
 }
 
@@ -268,9 +268,9 @@ function restart() {
 	weapons.reset();
 	boss.reset();
 	bossEngaged = false;
-	coreClaimed = false;
-	coreTelegraphed = false;
-	core.visible = true;
+	phaserClaimed = false;
+	phaserTelegraphed = false;
+	phaser.visible = true;
 	score = 0;
 	elapsed = 0;
 	waveIndex = 0;
@@ -321,18 +321,18 @@ function updatePlaying(dt) {
 	field.update(dt, ship.position.z);
 	enemies.update(dt);
 
-	// the Overdrive Core: fly through it to claim; auto-absorbed just past it
+	// the Multi-Phaser: fly through it to claim; auto-absorbed just past it
 	// so the back half (designed around the multilock) is never unsolvable
-	if (!coreClaimed) {
-		core.rotation.y += dt * 0.8;
-		core.rotation.x -= dt * 0.3;
-		coreOuter.rotation.z += dt * 0.6;
-		if (!coreTelegraphed && ship.progressZ > CONFIG.coreZ - 1600) {
-			coreTelegraphed = true;
-			hud.showWave('OVERDRIVE CORE AHEAD');
+	if (!phaserClaimed) {
+		phaser.rotation.y += dt * 0.8;
+		phaser.rotation.x -= dt * 0.3;
+		phaserOuter.rotation.z += dt * 0.6;
+		if (!phaserTelegraphed && ship.progressZ > CONFIG.phaserZ - 1600) {
+			phaserTelegraphed = true;
+			hud.showWave('MULTI-PHASER AHEAD');
 		}
-		if (ship.position.distanceTo(core.position) < CONFIG.coreRadius) claimCore(false);
-		else if (ship.progressZ > CONFIG.coreAutoGrantZ) claimCore(true);
+		if (ship.position.distanceTo(phaser.position) < CONFIG.phaserRadius) claimPhaser(false);
+		else if (ship.progressZ > CONFIG.phaserAutoGrantZ) claimPhaser(true);
 	}
 
 	// the Architect: engages before the gate; the run holds until it falls
@@ -396,7 +396,7 @@ function updatePlaying(dt) {
 			if (ringStreak === 3) { ship.boost = CONFIG.boostMax; hud.showWave('BOOST RESTORED'); }
 			if (ringStreak === 6 && !ship.shieldReady) { ship.restoreShield(); hud.showWave('SHIELD RESTORED'); }
 			if (ringStreak >= 10) {
-				if (scoreMult === 1) hud.showWave('OVERDRIVE ×2');
+				if (scoreMult === 1) hud.showWave('OVERDRIVE — SCORE ×2 FOR 20s');
 				scoreMult = 2;
 				multTimer = 20;
 			}
@@ -429,7 +429,7 @@ function updatePlaying(dt) {
 	// HUD
 	// the soundtrack BUILDS across the run: pad+kick at launch, the riff at
 	// p 0.05, the full band at 0.30 — and the lead only enters when the
-	// Overdrive Core is claimed (see claimCore). Sections still track thirds.
+	// Multi-Phaser is claimed (see claimPhaser). Sections still track thirds.
 	music.setSection(Math.min(2, Math.floor(p * 3)));
 	music.setIntensity(p > 0.30 ? 3 : (p > 0.05 ? 2 : 1));
 	_presence.shard = _presence.seeker = _presence.bastion = 0;
@@ -524,4 +524,4 @@ window.addEventListener('resize', () => {
 loop();
 
 // debug handle for automated testing
-window.__mo = { field, ship, enemies, weapons, music, backdrop, boss, input, core };
+window.__mo = { field, ship, enemies, weapons, music, backdrop, boss, input, phaser };

@@ -116,7 +116,7 @@ export class WeaponSystem {
 		this.lockState = 'none'; // none | tracking | locked
 		this.lockPx = { x: 0, y: 0 };
 
-		// Multilock (Overdrive Core powerup): RMB paints up to multilockMax
+		// Multilock (Multi-Phaser powerup): RMB/Ctrl paints up to multilockMax
 		// locks (stacking to multilockStack per target); release volleys one
 		// hard-homing missile per lock. Charge regenerates; rings top it up.
 		this.multilockEnabled = false;
