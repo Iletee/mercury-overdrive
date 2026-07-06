@@ -123,6 +123,7 @@ export class WeaponSystem {
 		this.multilockEnabled = false;
 		this.lockCharge = 0;
 		this.painted = [];      // [{ target, stacks }] in tag order
+		this.paintCount = 0;    // total stacks across painted — for the HUD tally
 		this.paintMarks = [];   // screen-space marks for the HUD, rebuilt per frame
 		this._volleyQueue = []; // staggered launches → detonation arpeggio
 		this._volleyTimer = 0;
@@ -183,6 +184,9 @@ export class WeaponSystem {
 		} else if (this.painted.length) {
 			this._releaseVolley(); // let go (RMB or Ctrl) and the volley flies
 		}
+
+		this.paintCount = 0;
+		for (const p of this.painted) this.paintCount += p.stacks;
 
 		// rebuild the HUD paint marks (screen px + stack count per target)
 		this.paintMarks.length = 0;
@@ -389,6 +393,7 @@ export class WeaponSystem {
 		this.multilockEnabled = false; // the Multi-Phaser must be claimed again
 		this.lockCharge = 0;
 		this.painted.length = 0;
+		this.paintCount = 0;
 		this.paintMarks.length = 0;
 		this._volleyQueue.length = 0;
 	}

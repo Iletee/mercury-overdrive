@@ -190,13 +190,13 @@ const LAYER_GAIN = {
 };
 const INTENSITY_RAMP_SEC = 0.05; // "50ms gain ramps" applied at the bar boundary
 
-// Enemy-presence motif layer gains by live count [0, 1, 2, 3] — gentle
-// scaling, capped at 3, each sitting around -14dB so they color the mix
-// rather than dominate it.
+// Enemy-presence motif layer gains by live count [0, 1, 2, 3] — one enemy
+// colors the mix, a pack takes real space in it: the curve steepens toward
+// -8dB at count 3+ so a spawning wave is unmistakably audible.
 const PRESENCE_GAIN = {
-  shard: [0, dbToGain(-16), dbToGain(-14), dbToGain(-12)],
-  seeker: [0, dbToGain(-16), dbToGain(-14), dbToGain(-12)],
-  bastion: [0, dbToGain(-15), dbToGain(-13), dbToGain(-11)],
+  shard: [0, dbToGain(-14), dbToGain(-11), dbToGain(-8.5)],
+  seeker: [0, dbToGain(-14), dbToGain(-11), dbToGain(-8.5)],
+  bastion: [0, dbToGain(-13), dbToGain(-10), dbToGain(-8)],
 };
 
 function makeDriveCurve(amount = 18) {

@@ -487,6 +487,11 @@ function updatePlaying(dt) {
 	hud.setShield(ship.shieldReady ? 1 : ship.shieldTimer / CONFIG.shieldRecharge, ship.shieldReady);
 	if (weapons.multilockEnabled) hud.setLockCharge(weapons.lockCharge, CONFIG.multilockMax);
 	hud.setPaintMarks(weapons.paintMarks);
+	// the reticle itself flips into multi mode while painting: spinning ring
+	// + a live "locked/max" tally beside it
+	hud.setMultiMode(
+		weapons.multilockEnabled && (input.painting || weapons.paintCount > 0),
+		weapons.paintCount, CONFIG.multilockMax);
 	if (weapons.lockState === 'none') hud.hideLock();
 	else hud.setLock(weapons.lockPx.x, weapons.lockPx.y, weapons.lockState === 'locked');
 	updatePings();

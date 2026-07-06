@@ -224,8 +224,26 @@ export class HUD {
 		['t', 'r', 'b', 'l'].forEach((dir) => {
 			cross.appendChild(el('div', `mo-crosshair__line mo-crosshair__line--${dir}`));
 		});
+		// multilock mode: a spinning paint ring + a lock tally beside the reticle
+		cross.appendChild(el('div', 'mo-crosshair__multi'));
+		this.crossCountEl = el('div', 'mo-crosshair__count', '');
+		cross.appendChild(this.crossCountEl);
 		this.crosshairEl = cross;
 		this.rootEl.appendChild(cross);
+	}
+
+	// multilock reticle: ring + "n/max" tally while painting (or locks banked)
+	setMultiMode(on, tags, max) {
+		if (on !== this._lastMultiOn) {
+			this._lastMultiOn = on;
+			this.crosshairEl.classList.toggle('mo-crosshair--multi', !!on);
+		}
+		if (!on) return;
+		const label = `${tags}/${max}`;
+		if (label !== this._lastMultiLabel) {
+			this._lastMultiLabel = label;
+			this.crossCountEl.textContent = label;
+		}
 	}
 
 	_buildLock() {

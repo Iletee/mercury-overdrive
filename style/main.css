@@ -608,6 +608,44 @@ html, body {
 	box-shadow: 0 0 6px var(--cyan-soft);
 }
 
+/* multilock mode: the reticle grows a spinning pink paint ring + lock tally */
+.mo-crosshair__multi,
+.mo-crosshair__count {
+	display: none;
+}
+
+.mo-crosshair--multi .mo-crosshair__multi {
+	display: block;
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	width: 44px;
+	height: 44px;
+	margin: -22px 0 0 -22px;
+	border: 2px solid var(--pink);
+	box-shadow: 0 0 10px var(--pink-soft), inset 0 0 8px var(--pink-soft);
+	animation: mo-paint-spin 1.6s linear infinite;
+}
+
+.mo-crosshair--multi .mo-crosshair__count {
+	display: block;
+	position: absolute;
+	top: 50%;
+	left: 38px;
+	transform: translateY(-50%);
+	font-size: 13px;
+	letter-spacing: 2px;
+	color: var(--pink-text);
+	text-shadow: 0 0 8px var(--pink);
+	white-space: nowrap;
+}
+
+.mo-crosshair--multi .mo-crosshair__dot,
+.mo-crosshair--multi .mo-crosshair__line {
+	background: var(--pink);
+	box-shadow: 0 0 6px var(--pink);
+}
+
 .mo-crosshair__line--t,
 .mo-crosshair__line--b {
 	left: 50%;
