@@ -42,11 +42,15 @@ discrete GPU helps — the whole world blooms.
   same course every run, generated in chunks ahead of you and recycled
   behind you. Act one is the meteorite gauntlet; beat the Architect and its
   gate opens into **THE RINGS** — the destination planet's ring system.
-- **The rings are a different world.** A flat, co-moving debris sheet banded
-  with gap channels: most rocks orbit in your direction of flight, so the
-  bands read as a convoy — surf alongside a boulder as moving cover, or
-  feed it to the enemies. The planet fills the sky. The music lifts into
-  its own fourth section.
+- **The rings are a different world.** Crossing the gate plays a scripted
+  dive — the ship noses over and flares out onto the band plane while the
+  planet swings up to own the entire sky. The bands are a flat, co-moving
+  debris sheet with gap channels: most rocks orbit in your direction of
+  flight, colliding and fracturing among themselves — surf alongside a
+  boulder as moving cover, or feed it to the enemies. The music flips into
+  a driving second arrangement: gallop bass, early 16th hats, a busier
+  lead over the fourth section's chords. (Dev kindness: dying in the rings
+  respawns you at the rings.)
 - **The Tractor Array** waits deep in the bands (~73k): hold **E** to drag
   nearby debris into a whirling orbital shield that soaks enemy fire,
   release to fling the whole cloud where you're aiming — the kinetic-kill

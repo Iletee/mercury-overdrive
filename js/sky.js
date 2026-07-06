@@ -209,17 +209,32 @@ export class SpaceBackdrop {
 		this.planet.add(body, ring, rim);
 		this.planet.position.set(2400, 900, -8200);
 		this.root.add(this.planet);
+		this._planetRing = ring;
+		this._ringsMode = 0; // 0 = approaching, 1 = inside the ring system
+	}
+
+	// Stage 2: you're IN the rings — the planet swings up to own the sky
+	// instead of hanging ahead like an unreachable poster. Blended 0..1 so
+	// the descent cinematic can sweep it into place.
+	setRingsMode(t) {
+		this._ringsMode = Math.max(0, Math.min(1, t));
 	}
 
 	update(dt, shipPos, progress) {
 		// backdrop is glued to the ship: infinitely far away
 		this.root.position.copy(shipPos);
 		// ...except the planet swells with progress — that's the sense of
-		// arrival, and stage 2 flies THROUGH its rings, so it keeps growing
-		// until it owns the sky
-		const scale = 340 + progress * 3400;
+		// arrival. In rings mode it blends up and overhead: a colossus you
+		// fly beneath, its ring plane (fictionally) the one you're in.
+		const rm = this._ringsMode;
+		const scale = (340 + progress * 3400) * (1 - rm) + 6200 * rm;
 		this.planet.scale.setScalar(scale);
-		this.planet.position.set(2400 - progress * 1400, 900 - progress * 500, -8200);
+		this.planet.position.set(
+			(2400 - progress * 1400) * (1 - rm) + 500 * rm,
+			(900 - progress * 500) * (1 - rm) + 3400 * rm,
+			-8200 - 1400 * rm
+		);
+		this._planetRing.material.opacity = 0.16 + rm * 0.1;
 		this.planet.rotation.y += dt * 0.01;
 		this.nebula.material.uniforms.uBeat.value *= Math.max(0, 1 - dt * 5);
 

@@ -279,6 +279,10 @@ export class SynthwaveEngine {
     this._bossMode = false;
     this._bossPhase = 1;
 
+    // Stage 2 arrangement (the rings): gallop bass, 16th hats a level
+    // early, a busier lead cadence — the same engine, driving harder.
+    this._stage2 = false;
+
     // Stateful SFX voices.
     this._boostOn = false;
     this._boostVoice = null;
@@ -368,6 +372,9 @@ export class SynthwaveEngine {
   }
 
   bossPhase(n) { this._bossPhase = Math.max(1, Math.min(3, n | 0)); }
+
+  // Stage 2 (the rings): flips the arrangement into its driving mode.
+  setStage2(on) { this._stage2 = !!on; }
 
   // Live enemy-type counts ({ shard, seeker, bastion }). Safe to call every
   // frame: if the values match what's already pending this is a fast no-op.
@@ -662,10 +669,10 @@ export class SynthwaveEngine {
       // Lead melody (task 1): plays on odd phrases only, rests on even ones
       // so its return reads as an event — see MELODY_PHRASE_* above.
       // Lead melody: earned via setLeadUnlocked (the multilock powerup).
-      // Once unlocked it sings two phrases out of three — the rest keeps
-      // its return an event instead of wallpaper.
+      // Once unlocked it sings two phrases out of three (three of four in
+      // the rings) — the rests keep its return an event, not wallpaper.
       this._melodyActive = this._leadUnlocked && this._currentIntensity >= 2
-        && (phraseIndex % 3 !== 2);
+        && (this._stage2 ? phraseIndex % 4 !== 3 : phraseIndex % 3 !== 2);
       this._applyIntensityGains(time);
       this._applyPresenceGains(time);
       this._updatePadChord(this._activeChordRoots[phraseBar], time);
@@ -699,8 +706,15 @@ export class SynthwaveEngine {
       if (fillIdx !== -1) this._triggerTomHit(fillIdx, time);
     }
 
-    // Level 3+: 16th closed hats, accent stabs, riser into the phrase turn.
-    if (lvl >= 3) this._triggerHat(time, false);
+    // Stage 2 gallop: insistent offbeat 8ths under the kick, pitched to the
+    // bar's chord — the rings drive where the gauntlet brooded.
+    if (this._stage2 && lvl >= 2 && step % 4 === 2) {
+      this._triggerGallop(this._activeChordRoots[phraseBar], time);
+    }
+
+    // Level 3+: 16th closed hats (a level early in the rings), accent
+    // stabs, riser into the phrase turn.
+    if (lvl >= 3 || (this._stage2 && lvl >= 2)) this._triggerHat(time, false);
     if (lvl >= 3 && (step === 0 || step === 14)) this._triggerStab(this._activeChordRoots[phraseBar], time);
     if (lvl >= 3 && phraseBar === BARS_PER_PHRASE - 1 && step === 0) this._triggerRiser(time, SECONDS_PER_BEAT * 4);
 
@@ -721,6 +735,21 @@ export class SynthwaveEngine {
     // Boss mode: a dark low-E ostinato hammering under everything —
     // syncopated in phases 1-2, doubled to a relentless gallop in phase 3.
     if (this._bossMode && lvl >= 1) this._triggerBossStep(step, time);
+  }
+
+  // Stage 2's engine room: a short square+saw bass pluck on the offbeat
+  // 8ths, filtered dark, through the pump bus so it breathes with the kick.
+  _triggerGallop(root, time) {
+    const ctx = this.ctx;
+    const o = ctx.createOscillator(); o.type = 'square'; o.frequency.value = noteFreq(root - 12);
+    const o2 = ctx.createOscillator(); o2.type = 'sawtooth'; o2.frequency.value = noteFreq(root); o2.detune.value = 6;
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass';
+    lp.frequency.setValueAtTime(520, time);
+    lp.frequency.exponentialRampToValueAtTime(150, time + 0.1);
+    const g = ctx.createGain();
+    this._pluck(g.gain, dbToGain(-12), 0.003, 0.1, time);
+    o.connect(lp); o2.connect(lp); lp.connect(g); g.connect(this.pumpBus);
+    o.start(time); o2.start(time); o.stop(time + 0.13); o2.stop(time + 0.13);
   }
 
   // Syncopated low-register pulse through the pump bus (ducks on the kick).

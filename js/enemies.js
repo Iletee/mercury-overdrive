@@ -22,6 +22,19 @@ const TYPES = {
 	},
 };
 
+// Geometry is shared per type (built once, never disposed) — spawning a wave
+// used to build fresh geometry + EdgesGeometry per enemy, a visible frame
+// spike. Materials stay per-enemy (each drives its own emissive glow).
+const GEO_CACHE = {};
+function geometriesFor(type) {
+	let g = GEO_CACHE[type];
+	if (!g) {
+		const geo = TYPES[type].geo();
+		g = GEO_CACHE[type] = { geo, edges: new THREE.EdgesGeometry(geo) };
+	}
+	return g;
+}
+
 export class EnemyManager {
 	constructor(scene, ship, weapons) {
 		this.scene = scene;
@@ -48,14 +61,14 @@ export class EnemyManager {
 
 	_spawn(type, i) {
 		const def = TYPES[type];
-		const geo = def.geo();
+		const shared = geometriesFor(type);
 		const group = new THREE.Group();
-		const body = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({
+		const body = new THREE.Mesh(shared.geo, new THREE.MeshStandardMaterial({
 			color: 0x12081f, roughness: 0.4, metalness: 0.6, flatShading: true,
 			emissive: def.color, emissiveIntensity: 0.6,
 		}));
 		const edges = new THREE.LineSegments(
-			new THREE.EdgesGeometry(geo),
+			shared.edges,
 			new THREE.LineBasicMaterial({ color: def.color, transparent: true, opacity: 0.95 })
 		);
 		group.add(body, edges);
@@ -161,9 +174,13 @@ export class EnemyManager {
 		if (!e.alive) return;
 		e.alive = false;
 		this.scene.remove(e.group);
-		e.body.geometry.dispose();
+		// standard enemies share cached geometry — never dispose it. Boss
+		// parts (pushed into `active` by boss.js) own theirs, so those do.
+		if (!TYPES[e.type]) {
+			e.body.geometry.dispose();
+			e.edges.geometry.dispose();
+		}
 		e.body.material.dispose();
-		e.edges.geometry.dispose();
 		e.edges.material.dispose();
 	}
 

@@ -122,12 +122,17 @@ export class RockPhysics {
 		if (!this.ready) return;
 		const b3 = this.b3;
 
-		// membership: adopt rocks entering the bubble, retire the leavers
+		// membership: adopt rocks entering the bubble, retire the leavers.
+		// Adoptions are capped per frame — crossing a chunk boundary in a
+		// dense band shouldn't cost a burst of body creation in one frame.
+		let adopts = 0;
 		for (const rec of field.records) {
 			const has = this._entries.has(rec);
 			const inB = this._inBubble(rec, shipPos);
-			if (!has && inB && this._entries.size < MAX_BODIES) this._adopt(rec);
-			else if (has && !inB) this._retire(rec);
+			if (!has && inB && this._entries.size < MAX_BODIES && adopts < 24) {
+				this._adopt(rec);
+				adopts += 1;
+			} else if (has && !inB) this._retire(rec);
 		}
 
 		// fixed-step with an accumulator (clamped: never spiral on a long frame)

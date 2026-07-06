@@ -40,6 +40,15 @@ let bossEngaged = false;
 let inRings = false;        // stage 2 — past the Architect's gate
 let tractorClaimed = false; // the Tractor Array (stage 2 pickup)
 let tractorTelegraphed = false;
+let stageTransition = 0;    // descent cinematic timer (gate -> ring plane)
+let ringsCheckpoint = false; // dev QoL: died in the rings -> respawn there
+const TRANSITION_LEN = 3.2;
+// synthetic input for the descent: full boost, nose over, hands off the guns
+const _diveInput = {
+	steerX: 0, steerY: 0, firing: false, painting: false, tractoring: false,
+	boosting: true, braking: false, rollLeft: false, rollRight: false,
+	mouseX: 0, mouseY: 0, mousePxX: 0, mousePxY: 0,
+};
 
 // --- renderer / scene / camera -------------------------------------------
 const container = document.getElementById('world');
@@ -377,10 +386,13 @@ function restart() {
 	phaserTelegraphed = false;
 	phaser.visible = true;
 	inRings = false;
+	stageTransition = 0;
 	tractorClaimed = false;
 	tractorTelegraphed = false;
 	tractorPickup.visible = true;
 	tractor.reset();
+	music.setStage2(false);
+	backdrop.setRingsMode(0);
 	score = 0;
 	elapsed = 0;
 	waveIndex = 0;
@@ -397,10 +409,26 @@ function restart() {
 	music.setIntensity(1);
 	music.setLeadUnlocked(false);
 	music.setBoss(false);
+	// dev checkpoint: died in the rings — respawn at the rings, act 1 done
+	// (after the music resets so the lead unlock survives)
+	if (ringsCheckpoint) {
+		phaserClaimed = true;
+		phaser.visible = false;
+		weapons.multilockEnabled = true;
+		weapons.lockCharge = CONFIG.multilockMax;
+		music.setLeadUnlocked(true);
+		hud.showMultilock();
+		field.setGateLit(true);
+		ship.position.z = -(CONFIG.stage1End + 250);
+		prevShipZ = ship.position.z;
+		waveIndex = WAVES.findIndex((w) => w.at > CONFIG.stage1End);
+		if (waveIndex < 0) waveIndex = WAVES.length;
+	}
 	startRun();
 }
 
 function endGame(won) {
+	ringsCheckpoint = !won && inRings; // dying in act 2 respawns in act 2
 	if (won) {
 		state = State.VICTORY;
 		music.gateChime();
@@ -426,7 +454,7 @@ let wasBoosting = false;
 function updatePlaying(dt) {
 	elapsed += dt;
 
-	ship.update(dt, input);
+	ship.update(dt, stageTransition > 0 ? _diveInput : input);
 	ship.updateCamera(camera, dt);
 	field.update(dt, ship.position.z);
 	physics.update(dt, field, ship.position);
@@ -446,12 +474,26 @@ function updatePlaying(dt) {
 		else if (ship.progressZ > CONFIG.phaserAutoGrantZ) claimPhaser(true);
 	}
 
-	// crossing the Architect's gate: STAGE 2 — the rings of the destination
+	// crossing the Architect's gate: STAGE 2 — a scripted dive down into the
+	// ring plane while the planet swings up to own the sky
 	if (!inRings && ship.progressZ > CONFIG.stage1End + 300) {
 		inRings = true;
-		hud.showWave('THE RINGS — RIDE THE BANDS');
+		stageTransition = TRANSITION_LEN;
+		ship.invuln = Math.max(ship.invuln, TRANSITION_LEN + 0.4);
+		hud.showWave('DESCENDING INTO THE RINGS');
 		music.gateChime();
+		music.setStage2(true);
 	}
+	if (stageTransition > 0) {
+		stageTransition = Math.max(0, stageTransition - dt);
+		const t = 1 - stageTransition / TRANSITION_LEN;
+		// dive-and-flare: nose over in the first half, pull back up in the
+		// second, so the ship ends near the band plane instead of far below
+		_diveInput.steerY = -Math.sin(t * Math.PI * 2) * 0.9;
+		_diveInput.steerX = Math.sin(t * Math.PI) * 0.3;
+	}
+	// the backdrop planet swings overhead through the dive and stays there
+	backdrop.setRingsMode(inRings ? (stageTransition > 0 ? 1 - stageTransition / TRANSITION_LEN : 1) : 0);
 
 	// the Tractor Array: stage 2's pickup, claimed by flying through
 	if (inRings && !tractorClaimed) {
@@ -469,7 +511,9 @@ function updatePlaying(dt) {
 	tractor.update(dt, input, _aimDir);
 
 	// the Architect: engages before the gate; the run holds until it falls
-	if (!bossEngaged && ship.progressZ >= CONFIG.bossStartZ) {
+	// (never re-engages when respawning past its arena via the checkpoint)
+	if (!bossEngaged && ship.progressZ >= CONFIG.bossStartZ
+		&& ship.progressZ < CONFIG.stage1End - 500) {
 		bossEngaged = true;
 		boss.engage(ship.position.z);
 		ship.speedCap = CONFIG.bossArenaSpeed;
@@ -669,9 +713,34 @@ const _sunDir = new THREE.Vector3(-2600, -350, -4400);
 const _shipPush = new THREE.Vector3();
 const clock = new THREE.Clock();
 
+// --- 40fps floor: dynamic resolution ----------------------------------------
+// Rolling 2s average of raw frame time; drop the pixel ratio a notch when the
+// frame budget slips, climb back when there's headroom. Resolution is the one
+// lever that scales every GPU cost at once (bloom, volumetrics, shadows).
+const PR_MAX = Math.min(window.devicePixelRatio, 2);
+let _prCurrent = PR_MAX;
+let _perfAcc = 0, _perfN = 0;
+function tuneResolution(rawDt) {
+	_perfAcc += rawDt;
+	_perfN += 1;
+	if (_perfAcc < 2) return;
+	const avgMs = (_perfAcc / _perfN) * 1000;
+	_perfAcc = 0; _perfN = 0;
+	let next = _prCurrent;
+	if (avgMs > 23 && _prCurrent > 1) next = Math.max(1, _prCurrent - 0.25);
+	else if (avgMs < 15 && _prCurrent < PR_MAX) next = Math.min(PR_MAX, _prCurrent + 0.25);
+	if (next !== _prCurrent) {
+		_prCurrent = next;
+		renderer.setPixelRatio(next);
+		composer.setPixelRatio(next);
+		composer.setSize(window.innerWidth, window.innerHeight);
+	}
+}
+
 function loop() {
 	requestAnimationFrame(loop);
 	const rawDt = Math.min(clock.getDelta(), 0.05);
+	tuneResolution(rawDt);
 	let dt = rawDt;
 	if (hitstop > 0) {
 		hitstop -= rawDt;
