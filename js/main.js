@@ -19,6 +19,7 @@ import { MicroDebris } from './debris.js';
 import { SynthwaveEngine } from './music.js';
 import { HUD } from './hud.js';
 import { ArchitectBoss } from './boss.js';
+import { RockPhysics } from './physics.js';
 
 const State = { TITLE: 0, PLAYING: 1, GAMEOVER: 2, VICTORY: 3 };
 
@@ -75,6 +76,10 @@ const enemies = new EnemyManager(scene, ship, weapons);
 const fx = new FXSystem(scene, camera);
 const debris = new MicroDebris(scene);
 const boss = new ArchitectBoss(scene, ship, weapons, enemies, fx);
+// Box3D rock physics — WASM loads async; until then rocks stay scripted
+const physics = new RockPhysics();
+physics.init();
+field.physics = physics;
 
 // --- the Multi-Phaser: the multilock powerup, waiting on the centerline
 // at the exit of squeeze 1. Fly through it to claim.
@@ -129,6 +134,7 @@ weapons.events.onEnemyHit = (e, point, dmg = 1) => {
 		hitstop = big ? 0.1 : 0.06;
 		ship.shake(big ? 0.5 : 0.25);
 		music.explosion(big);
+		physics.blast(e.position, big ? 420 : 260, big ? 5200 : 3200);
 		addScore(e.score);
 	}
 };
@@ -137,17 +143,45 @@ weapons.events.onEnemyHit = (e, point, dmg = 1) => {
 weapons.events.onPaint = (k) => music.multilockPaint(k);
 weapons.events.onVolley = (n) => music.multilockVolley(n);
 
-weapons.events.onAsteroidHit = (rec, point) => {
-	fx.spawnHitSpark(point, Colors.cyan);
-	if (field.damage(rec, 1)) {
-		fx.spawnExplosion(rec.pos, Colors.orange, Math.max(1, rec.r / 18));
-		if (rec.r > 55) {
-			fx.spawnShockwave(rec.pos, Colors.orange, Math.min(3, rec.r / 45));
-			hitstop = 0.05;
-		}
-		music.explosion(rec.r > 120);
-		addScore(Math.round(CONFIG.scoreAsteroid + rec.r * 2)); // big rocks pay big
+// a rock died — fx, music, a real blast wave into the field, maybe score
+function rockDestroyed(rec, byPlayer) {
+	fx.spawnExplosion(rec.pos, Colors.orange, Math.max(1, rec.r / 18));
+	if (rec.r > 55) {
+		fx.spawnShockwave(rec.pos, Colors.orange, Math.min(3, rec.r / 45));
+		if (byPlayer) hitstop = 0.05;
 	}
+	music.explosion(rec.r > 120);
+	physics.blast(rec.pos, rec.r * 2.4 + 120, rec.r > 55 ? 2600 : 1500);
+	if (byPlayer) addScore(Math.round(CONFIG.scoreAsteroid + rec.r * 2)); // big rocks pay big
+}
+
+// how hard a bolt shoves a rock: target speed change, small rocks fly
+function boltKick(rec, dir, dmg) {
+	const dv = Math.min(170, Math.max(6, 240 * 16 / rec.r)) * (1 + (dmg - 1) * 0.4);
+	physics.kick(rec, dir, dv);
+}
+
+weapons.events.onAsteroidHit = (rec, point, dir, dmg = 1) => {
+	fx.spawnHitSpark(point, Colors.cyan);
+	boltKick(rec, dir, dmg);
+	if (field.damage(rec, dmg)) rockDestroyed(rec, true);
+};
+
+// enemy fire chips rocks too — and their bolts fly toward YOU, so the
+// debris they knock loose becomes your problem
+weapons.events.onEnemyBoltRock = (rec, point, dir) => {
+	fx.spawnHitSpark(point, Colors.orange);
+	boltKick(rec, dir, 1.4);
+	if (field.damage(rec, 1)) rockDestroyed(rec, false);
+};
+
+// rocks slamming into each other above the hit threshold chip away
+const _impactV = new THREE.Vector3();
+physics.onRockImpact = (rec, point, speed) => {
+	if (speed < 115 || state !== State.PLAYING) return;
+	_impactV.set(point.x, point.y, point.z);
+	fx.spawnHitSpark(_impactV, Colors.orange);
+	if (field.damage(rec, 1)) rockDestroyed(rec, false);
 };
 
 weapons.events.onPlayerHit = (point) => {
@@ -159,6 +193,7 @@ enemies.events.onSeekerBlast = (e) => {
 	fx.spawnExplosion(e.position, Colors.orange, 2.2);
 	music.explosion(true);
 	ship.shake(1);
+	physics.blast(e.position, 320, 3800);
 	hurtPlayer();
 };
 
@@ -264,6 +299,7 @@ function restart() {
 	ship.reset();
 	ship.group.visible = true;
 	field.reset();
+	physics.reset();
 	enemies.reset();
 	weapons.reset();
 	boss.reset();
@@ -319,6 +355,7 @@ function updatePlaying(dt) {
 	ship.update(dt, input);
 	ship.updateCamera(camera, dt);
 	field.update(dt, ship.position.z);
+	physics.update(dt, field, ship.position);
 	enemies.update(dt);
 
 	// the Multi-Phaser: fly through it to claim; auto-absorbed just past it
@@ -373,6 +410,9 @@ function updatePlaying(dt) {
 			music.explosion(false);
 		} else {
 			ship.nudgeOutOf(hit.normal, hit.depth);
+			// the hull shoves the rock too — ramming has consequences both ways
+			_shipPush.copy(hit.normal).negate();
+			physics.kick(hit.record, _shipPush, Math.min(60, 1400 / hit.record.r));
 		}
 		ship.shake(0.8);
 		hurtPlayer();
@@ -499,6 +539,7 @@ function updatePings() {
 }
 
 const _sunDir = new THREE.Vector3(-2600, -350, -4400);
+const _shipPush = new THREE.Vector3();
 const clock = new THREE.Clock();
 
 function loop() {
@@ -524,4 +565,4 @@ window.addEventListener('resize', () => {
 loop();
 
 // debug handle for automated testing
-window.__mo = { field, ship, enemies, weapons, music, backdrop, boss, input, phaser };
+window.__mo = { field, ship, enemies, weapons, music, backdrop, boss, input, phaser, physics };

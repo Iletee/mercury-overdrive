@@ -86,6 +86,7 @@ export class AsteroidField {
 
 		this.chunks = new Map(); // chunkIndex -> record[]
 		this.records = new Set();
+		this.physics = null;     // attached by main; owns simulated rocks
 
 		this._m = new THREE.Matrix4();
 		this._q = new THREE.Quaternion();
@@ -292,6 +293,8 @@ export class AsteroidField {
 			spin: (rng() - 0.5) * (r > 200 ? 0.05 : 0.5),
 			hp: r <= 45 ? 2 : Math.ceil(r / 14), // everything dies with enough fire
 			alive: true,
+			simulated: false, // true while a physics body owns pos/quat
+			vel: null,        // initial velocity hint for the physics adoption
 		};
 		this.records.add(rec);
 		return rec;
@@ -301,6 +304,7 @@ export class AsteroidField {
 		if (!rec.alive) return;
 		rec.alive = false;
 		this.records.delete(rec);
+		if (this.physics) this.physics.removeFor(rec);
 		this._m.makeScale(0, 0, 0);
 		this.meshes[rec.variant].setMatrixAt(rec.slot, this._m);
 		this.freeSlots[rec.variant].push(rec.slot);
@@ -320,10 +324,13 @@ export class AsteroidField {
 			}
 		}
 
-		// tumble + write matrices
+		// tumble + write matrices (physics-owned rocks get pos/quat from their
+		// rigid body — see physics.js — so only scripted rocks integrate spin)
 		for (const rec of this.records) {
-			this._q.setFromAxisAngle(rec.axis, rec.spin * dt);
-			rec.quat.premultiply(this._q);
+			if (!rec.simulated) {
+				this._q.setFromAxisAngle(rec.axis, rec.spin * dt);
+				rec.quat.premultiply(this._q);
+			}
 			this._s.setScalar(rec.r);
 			this._m.compose(rec.pos, rec.quat, this._s);
 			this.meshes[rec.variant].setMatrixAt(rec.slot, this._m);
@@ -390,13 +397,25 @@ export class AsteroidField {
 
 		if (rec.r > 55 && list) {
 			const rng = Math.random;
+			// fragments carry their parent's momentum plus a radial burst —
+			// a shattered rock is a hazard, not a disappearance
+			const pv = this.physics ? this.physics.velocityOf(rec) : null;
 			for (let i = 0; i < 3; i++) {
+				const ox = (rng() * 2 - 1) * rec.r * 0.8;
+				const oy = (rng() * 2 - 1) * rec.r * 0.8;
+				const oz = (rng() * 2 - 1) * rec.r * 0.5;
 				const child = this._spawn(rng,
-					rec.pos.x + (rng() * 2 - 1) * rec.r * 0.8,
-					rec.pos.y + (rng() * 2 - 1) * rec.r * 0.8,
-					rec.pos.z + (rng() * 2 - 1) * rec.r * 0.5,
+					rec.pos.x + ox, rec.pos.y + oy, rec.pos.z + oz,
 					rec.r * (0.3 + rng() * 0.15));
-				if (child) list.push(child);
+				if (child) {
+					const burst = (55 + rng() * 65) / Math.max(1, Math.hypot(ox, oy, oz));
+					child.vel = {
+						x: (pv ? pv.x : 0) + ox * burst,
+						y: (pv ? pv.y : 0) + oy * burst,
+						z: (pv ? pv.z : 0) + oz * burst,
+					};
+					list.push(child);
+				}
 			}
 		}
 		return true;

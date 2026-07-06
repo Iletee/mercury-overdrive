@@ -7,7 +7,7 @@ the picket fleet, and reach the gate at the far end before the hull gives out.
 Everything is synthesized at runtime. The music (a Daft-Punk-inspired
 electro engine on raw Web Audio), every sound effect, the ship, the rocks,
 the sky — no downloaded assets, no build step, no bundler. One `npm install`
-pulls Three.js; the rest is code.
+pulls Three.js and the Box3D physics WASM; the rest is code.
 
 ![Made with Three.js](https://img.shields.io/badge/three.js-r165-2de2e6)
 ![No build step](https://img.shields.io/badge/build-none-ff3864)
@@ -46,8 +46,15 @@ discrete GPU helps — the whole world blooms.
   **6** restores your shield, **10** triggers **OVERDRIVE** — double score
   for 20 seconds — and clean flying draws extra escort targets with the
   next wave. Miss one and the streak resets.
+- **The rocks are real rigid bodies.** A physics bubble around the ship runs
+  on [Box3D](https://github.com/erincatto/box3d) (Erin Catto's 3D engine, via
+  [box3d.js](https://github.com/isaac-mason/box3d.js) WASM bindings): rocks
+  drift, tumble, and collide; bolts knock them around; every explosion is a
+  real blast wave. Rocks that slam into each other hard enough chip apart.
 - **Everything is destructible.** Asteroid HP scales with size; big rocks
-  calve into fragments, and score pays by radius.
+  calve into fragments that inherit their parent's momentum — a shattered
+  rock is a hazard, not a disappearance. Enemy fire chips rocks too, and
+  their bolts fly toward *you*, so so does the debris they knock loose.
 - **Three enemy types** with distinct silhouettes, behaviors, and scores:
   Shards (strafing formation drones that fire on the beat), Seekers
   (kamikaze pursuers), Bastions (heavy burst-fire turrets). Radar pings
@@ -100,6 +107,7 @@ wired to it:
 | `js/store.js` | **All tuning** — flight feel, combat, waves, forks, squeezes, scoring |
 | `js/ship.js` | Flight model, chase camera, barrel rolls, shield, procedural ship |
 | `js/field.js` | Seeded chunked asteroid field, route/fork system, collectible rings |
+| `js/physics.js` | Box3D rock physics — the bubble, blasts, kicks, impact chipping |
 | `js/enemies.js` | Shard / Seeker / Bastion behaviors |
 | `js/boss.js` | THE ARCHITECT — shield lattice, beam sweeps, vents, novas, derez |
 | `js/weapons.js` | Pooled bolts, crosshair-ray aiming, lock-on homing, multilock paint/volley |

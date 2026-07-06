@@ -106,6 +106,7 @@ export class WeaponSystem {
 			onShoot: () => {},
 			onEnemyHit: () => {},
 			onAsteroidHit: () => {},
+			onEnemyBoltRock: () => {}, // (rec, point, dir) — enemy fire chips rocks
 			onPlayerHit: () => {},
 			onLockChange: () => {},
 			onPaint: () => {},   // (k) — k-th multilock tag added (0-based)
@@ -313,7 +314,7 @@ export class WeaponSystem {
 			if (!dead) {
 				const hit = this.field.segmentHit(b.prev, b.pos, 2);
 				if (hit) {
-					this.events.onAsteroidHit(hit.record, hit.point);
+					this.events.onAsteroidHit(hit.record, hit.point, b.dir, b.damage || 1);
 					dead = true;
 				}
 			}
@@ -335,7 +336,15 @@ export class WeaponSystem {
 				this.events.onPlayerHit(b.pos);
 				dead = true;
 			}
-			if (!dead && this.field.segmentHit(b.prev, b.pos, 2)) dead = true; // rocks soak enemy fire
+			if (!dead) {
+				// rocks soak enemy fire — but they chip and get shoved by it,
+				// and enemy bolts fly toward YOU, so so does the debris
+				const hit = this.field.segmentHit(b.prev, b.pos, 2);
+				if (hit) {
+					this.events.onEnemyBoltRock(hit.record, hit.point, b.dir);
+					dead = true;
+				}
+			}
 			if (dead) this.enemy.kill(b);
 			else this.enemy.writeMatrix(b);
 		}
