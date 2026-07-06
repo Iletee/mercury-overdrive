@@ -16,9 +16,11 @@ export class InputState {
 		this.steerY = 0; // W = +1 (climb), S = -1
 
 		this.firing = false;
-		this.painting = false; // multilock painting: RMB held, or Ctrl (touchpads)
+		this.painting = false; // multilock painting: hold Q, or hold RMB
 		this._paintMouse = false;
 		this._paintKey = false;
+		this._tapL = 0; // double-tap timestamps for A/D barrel rolls
+		this._tapR = 0;
 		this.boosting = false;
 		this.braking = false;
 		this.rollLeft = false;
@@ -60,16 +62,31 @@ export class InputState {
 		this.steerX = (k.has('KeyD') || k.has('ArrowRight') ? 1 : 0) - (k.has('KeyA') || k.has('ArrowLeft') ? 1 : 0);
 		this.steerY = (k.has('KeyW') || k.has('ArrowUp') ? 1 : 0) - (k.has('KeyS') || k.has('ArrowDown') ? 1 : 0);
 
+		// double-tap A/D (or the arrows) barrel-rolls into that direction; the
+		// flag clears on key release and the ship edge-triggers, so one
+		// double-tap = one roll
+		if (down && !e.repeat) {
+			const now = performance.now();
+			if (e.code === 'KeyA' || e.code === 'ArrowLeft') {
+				if (now - this._tapL < 280) this.rollLeft = true;
+				this._tapL = now;
+			} else if (e.code === 'KeyD' || e.code === 'ArrowRight') {
+				if (now - this._tapR < 280) this.rollRight = true;
+				this._tapR = now;
+			}
+		} else if (!down) {
+			if (e.code === 'KeyA' || e.code === 'ArrowLeft') this.rollLeft = false;
+			if (e.code === 'KeyD' || e.code === 'ArrowRight') this.rollRight = false;
+		}
+
 		switch (e.code) {
 			case 'ShiftLeft':
 			case 'ShiftRight': this.boosting = down; break;
 			case 'KeyX': this.braking = down; break;
-			case 'KeyQ': this.rollLeft = down; break;
-			case 'KeyE': this.rollRight = down; break;
 			case 'Space': this.firing = down; e.preventDefault(); break;
-			// Ctrl paints too — holding RMB while steering is rough on touchpads
-			case 'ControlLeft':
-			case 'ControlRight':
+			// Q is the multilock painter — a held key beats a held mouse
+			// button when you're also steering
+			case 'KeyQ':
 				this._paintKey = down;
 				this.painting = down || this._paintMouse;
 				break;

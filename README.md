@@ -30,10 +30,10 @@ discrete GPU helps — the whole world blooms.
 | **WASD** / arrows | Steer — the ship banks into turns and recenters on release |
 | **Mouse** | Aim — the crosshair is a free turret cursor, fully decoupled from flight |
 | **Click** (hold) | Fire — bolts converge on the crosshair; near-crosshair enemies lock on, full locks home |
-| **Right mouse / Ctrl** (hold) | **Multilock** (once the Multi-Phaser is claimed) — sweep the cursor to paint up to 6 locks, release to volley |
+| **Q / Right mouse** (hold) | **Multilock** (once the Multi-Phaser is claimed) — sweep the cursor to paint up to 6 locks, release to volley |
 | **Shift** | Boost (drains the meter; rings refill it) |
 | **X** | Brake — narrows the view into a steadier gun platform |
-| **Q / E** | Barrel roll — sideways dodge with a moment of invulnerability |
+| **A A / D D** (double-tap) | Barrel roll into that direction — sideways dodge with a moment of invulnerability |
 
 ## The run
 
@@ -46,6 +46,11 @@ discrete GPU helps — the whole world blooms.
   **6** restores your shield, **10** triggers **OVERDRIVE** — double score
   for 20 seconds — and clean flying draws extra escort targets with the
   next wave. Miss one and the streak resets.
+- **The pulsar casts volumetric light.** A raymarched god-ray beam (technique
+  after [three-volumetric-light](https://github.com/cullenwebber/three-volumetric-light))
+  sweeps the course from the pulsar's direction, and the asteroids carve
+  real moving shadow shafts through it via the light's shadow map. It
+  breathes with the beat, like everything else.
 - **The rocks are real rigid bodies.** A physics bubble around the ship runs
   on [Box3D](https://github.com/erincatto/box3d) (Erin Catto's 3D engine, via
   [box3d.js](https://github.com/isaac-mason/box3d.js) WASM bindings): rocks
@@ -108,6 +113,7 @@ wired to it:
 | `js/ship.js` | Flight model, chase camera, barrel rolls, shield, procedural ship |
 | `js/field.js` | Seeded chunked asteroid field, route/fork system, collectible rings |
 | `js/physics.js` | Box3D rock physics — the bubble, blasts, kicks, impact chipping |
+| `js/volumetric.js` | Raymarched volumetric pulsar light with shadow-carved god rays |
 | `js/enemies.js` | Shard / Seeker / Bastion behaviors |
 | `js/boss.js` | THE ARCHITECT — shield lattice, beam sweeps, vents, novas, derez |
 | `js/weapons.js` | Pooled bolts, crosshair-ray aiming, lock-on homing, multilock paint/volley |

@@ -20,6 +20,7 @@ import { SynthwaveEngine } from './music.js';
 import { HUD } from './hud.js';
 import { ArchitectBoss } from './boss.js';
 import { RockPhysics } from './physics.js';
+import { VolumetricPulsarLight } from './volumetric.js';
 
 const State = { TITLE: 0, PLAYING: 1, GAMEOVER: 2, VICTORY: 3 };
 
@@ -80,6 +81,8 @@ const boss = new ArchitectBoss(scene, ship, weapons, enemies, fx);
 const physics = new RockPhysics();
 physics.init();
 field.physics = physics;
+// volumetric god rays from the pulsar; the rocks carve shadows through them
+const volumetric = new VolumetricPulsarLight(scene, renderer, field);
 
 // --- the Multi-Phaser: the multilock powerup, waiting on the centerline
 // at the exit of squeeze 1. Fly through it to claim.
@@ -232,6 +235,7 @@ music.onBeat(({ beat, bar }) => {
 	// The pulsar in the sky is the visible source of the beat (big halo ring
 	// on the downbeat); the world around the ship only shimmers in sympathy.
 	backdrop.beatPulse(beat % 4 === 0 ? 1 : 0.55);
+	volumetric.beatPulse(beat % 4 === 0 ? 1 : 0.45);
 	field.beatPulse(0.55);
 	fx.beatPulse(1);
 	debris.beatPulse(1);
@@ -256,7 +260,7 @@ function claimPhaser(auto) {
 	hud.showMultilock();
 	hud.showWave(auto ? 'MULTI-PHASER ABSORBED' : 'MULTI-PHASER ONLINE');
 	setTimeout(() => {
-		if (state === State.PLAYING) hud.showWave('HOLD RMB OR CTRL TO PAINT — RELEASE TO VOLLEY');
+		if (state === State.PLAYING) hud.showWave('HOLD Q TO PAINT TARGETS — RELEASE TO VOLLEY');
 	}, 2300);
 }
 
@@ -394,6 +398,7 @@ function updatePlaying(dt) {
 	fx.update(dt, ship.speed, ship.position);
 	debris.update(dt, ship.position, ship.speed);
 	backdrop.update(dt, ship.position, progress());
+	volumetric.update(dt, ship.position);
 
 	// boost audio state
 	if (ship.boostEngaged !== wasBoosting) {
@@ -500,6 +505,7 @@ function updateIdle(dt) {
 	fx.update(dt, state === State.TITLE ? 120 : 0, ship.position);
 	debris.update(dt, ship.position, state === State.TITLE ? 120 : 0);
 	backdrop.update(dt, camera.position, progress());
+	volumetric.update(dt, ship.position);
 }
 
 function progress() {
@@ -565,4 +571,4 @@ window.addEventListener('resize', () => {
 loop();
 
 // debug handle for automated testing
-window.__mo = { field, ship, enemies, weapons, music, backdrop, boss, input, phaser, physics };
+window.__mo = { field, ship, enemies, weapons, music, backdrop, boss, input, phaser, physics, volumetric };

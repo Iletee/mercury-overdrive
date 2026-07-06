@@ -341,10 +341,10 @@ export class HUD {
 			['WASD', 'steer'],
 			['MOUSE', 'aim'],
 			['CLICK', 'fire'],
-			['RMB/CTRL', 'multilock'],
+			['Q', 'multilock'],
 			['SHIFT', 'boost'],
 			['X', 'brake'],
-			['Q/E', 'barrel roll'],
+			['A·A / D·D', 'barrel roll'],
 		];
 		controls.forEach(([key, desc], i) => {
 			if (i > 0) legend.appendChild(el('span', 'mo-title__dot', '·'));

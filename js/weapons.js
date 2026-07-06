@@ -214,19 +214,22 @@ export class WeaponSystem {
 		if (total >= Math.min(CONFIG.multilockMax, Math.floor(this.lockCharge))) return;
 
 		const w = window.innerWidth, h = window.innerHeight;
+		// painting is generous: 1.6x the single-lock radius, so a fast sweep
+		// still catches targets between frames
+		const paintPx = CONFIG.lockRangePx * 1.6;
 		for (const e of enemies) {
 			if (!e.alive) continue;
 			this._proj.copy(e.position).project(this.camera);
 			if (this._proj.z > 1) continue;
 			const sx = (this._proj.x * 0.5 + 0.5) * w;
 			const sy = (-this._proj.y * 0.5 + 0.5) * h;
-			if (Math.hypot(sx - input.mousePxX, sy - input.mousePxY) > CONFIG.lockRangePx) continue;
+			if (Math.hypot(sx - input.mousePxX, sy - input.mousePxY) > paintPx) continue;
 			if (e.position.distanceTo(this.ship.position) > 4500) continue;
 			let entry = this.painted.find((p) => p.target === e);
 			if (entry && entry.stacks >= CONFIG.multilockStack) continue;
 			if (!entry) { entry = { target: e, stacks: 0 }; this.painted.push(entry); }
 			entry.stacks += 1;
-			this._tagCooldown = 0.11;
+			this._tagCooldown = 0.06;
 			this.events.onPaint(total); // total-before = ascending note index
 			break; // one tag per pass — sweep the cursor to keep painting
 		}
