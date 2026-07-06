@@ -117,10 +117,16 @@ export class AsteroidField {
 	// One snaking corridor, splitting into two around each fork. When split,
 	// index 0 is the right/pink branch, index 1 the left/cyan branch.
 	routeCenters(p) {
-		// the route snakes, but straightens out at the start and at the gate
-		const amp = smoothstep(0, 3000, p) * smoothstep(CONFIG.courseLength, CONFIG.courseLength - 4000, p);
-		const baseX = Math.sin(p * 0.00022) * 420 * amp;
-		const baseY = Math.sin(p * 0.00035 + 1.3) * 300 * amp;
+		// the route snakes, but straightens out at the start, at the gates,
+		// and through the boss arena
+		let amp = smoothstep(0, 3000, p) * smoothstep(CONFIG.courseLength, CONFIG.courseLength - 4000, p);
+		amp *= 1 - smoothstep(52000, 54000, p) * smoothstep(62000, 60500, p);
+		// in the rings the route hugs the (flat) ring plane: wide lateral
+		// sweeps, very little vertical
+		const ringT = smoothstep(CONFIG.stage1End, CONFIG.stage1End + 3000, p);
+		const baseX = Math.sin(p * 0.00022) * (420 + 260 * ringT) * amp;
+		const baseY = Math.sin(p * 0.00035 + 1.3) * 300 * (1 - 0.75 * ringT) * amp
+			+ Math.sin(p * 0.00013) * 180 * ringT;
 		let split = 0;
 		for (const f of CONFIG.forks) {
 			const t = smoothstep(f.start, f.start + CONFIG.forkBlend, p) *
@@ -202,6 +208,7 @@ export class AsteroidField {
 	}
 
 	_buildGate() {
+		// the Architect's gate — end of stage 1, lights when the boss falls
 		this.gate = new THREE.Group();
 		const ring = new THREE.Mesh(
 			new THREE.TorusGeometry(340, 16, 12, 64),
@@ -219,10 +226,31 @@ export class AsteroidField {
 			})
 		);
 		this.gate.add(ring, ring2, halo);
-		this.gate.position.set(0, 0, -CONFIG.courseLength - 200);
+		this.gate.position.set(0, 0, -CONFIG.stage1End - 200);
 		this.scene.add(this.gate);
 		this._gateRing = ring;
 		this._gateHalo = halo;
+
+		// the final gate — end of the rings, always burning
+		this.gate2 = new THREE.Group();
+		const fring = new THREE.Mesh(
+			new THREE.TorusGeometry(340, 16, 12, 64),
+			new THREE.MeshBasicMaterial({ color: Colors.orange })
+		);
+		const fring2 = new THREE.Mesh(
+			new THREE.TorusGeometry(400, 5, 8, 64),
+			new THREE.MeshBasicMaterial({ color: Colors.white })
+		);
+		const fhalo = new THREE.Mesh(
+			new THREE.CircleGeometry(340, 64),
+			new THREE.MeshBasicMaterial({
+				color: Colors.orange, transparent: true, opacity: 0.16,
+				blending: THREE.AdditiveBlending, side: THREE.DoubleSide, depthWrite: false,
+			})
+		);
+		this.gate2.add(fring, fring2, fhalo);
+		this.gate2.position.set(0, 0, -CONFIG.courseLength - 200);
+		this.scene.add(this.gate2);
 	}
 
 	// The gate sits dark behind the Architect and lights when it falls.
@@ -238,8 +266,13 @@ export class AsteroidField {
 		const z0 = -index * D;
 		const frac = Math.min(1, (index * D) / CONFIG.courseLength);
 		if (frac >= 1) { this.chunks.set(index, []); return; } // clear space past the gate
-		// the boss arena is swept clean — dodging is about the Architect, not rocks
-		if (index * D >= CONFIG.bossStartZ) { this.chunks.set(index, []); return; }
+		// the boss arena (54k..60k) is swept clean — dodging is about the
+		// Architect, not rocks. The rings resume beyond the stage 1 gate.
+		if (index * D >= CONFIG.bossStartZ && index * D < CONFIG.stage1End) {
+			this.chunks.set(index, []);
+			return;
+		}
+		if (index * D >= CONFIG.stage1End) { this._spawnRingChunk(index, rng); return; }
 
 		const records = [];
 		let count = Math.round(18 + 34 * Math.sin(Math.min(1, frac * 1.15) * Math.PI * 0.5) * (0.75 + 0.5 * rng()));
@@ -287,6 +320,59 @@ export class AsteroidField {
 				(rng() * 2 - 1) * 2200,
 				z0 - rng() * D,
 				500 + rng() * 900));
+		}
+		this.chunks.set(index, records.filter(Boolean));
+	}
+
+	// Stage 2 — THE RINGS: a flat, co-moving debris sheet around the ring
+	// plane, banded with gap channels (the flyable lanes between ringlets).
+	// Most rocks orbit WITH the flight direction, so the field reads as a
+	// convoy you can surf — cover from picket fire, ammunition for the
+	// tractor — while the closing speed stays flyable.
+	_spawnRingChunk(index, rng) {
+		const D = CONFIG.chunkDepth;
+		const z0 = -index * D;
+		const records = [];
+		const count = Math.round(46 + 26 * rng());
+		for (let i = 0; i < count; i++) {
+			const z = z0 - rng() * D;
+			let x = (rng() * 2 - 1) * 2300;
+			// ringlet banding: skip rocks inside the gap channels
+			if (Math.sin(x * 0.0016 + (-z) * 0.0002) > 0.55 && rng() < 0.8) continue;
+			// the sheet: thin around the (gently undulating) ring plane, with
+			// the odd straggler above/below
+			const planeY = Math.sin(-z * 0.00013) * 180;
+			let y = planeY + (rng() * 2 - 1) * CONFIG.ringPlaneSpread;
+			if (rng() > 0.9) y = planeY + (rng() * 2 - 1) * 520;
+			const roll = rng();
+			let r;
+			if (roll > 0.965) r = 150 + rng() * 160;       // shepherd boulders
+			else if (roll > 0.8) r = 55 + rng() * 70;
+			else r = 9 + rng() * 34;
+			// carve the flyable corridors here too
+			const centers = this.routeCenters(-z);
+			const lane = this.corridorRadiusAt(-z);
+			for (const c of centers) {
+				const dx = x - c.x, dy = y - c.y;
+				const d = Math.hypot(dx, dy);
+				const clear = lane + r;
+				if (d < clear) {
+					const ang = d > 1 ? Math.atan2(dy, dx) : rng() * Math.PI * 2;
+					const out = clear + 40 + rng() * 200;
+					x = c.x + Math.cos(ang) * out;
+					y = c.y + Math.sin(ang) * out;
+				}
+			}
+			const rec = this._spawn(rng, x, y, z, r);
+			if (rec && r <= 130) {
+				// the convoy: co-moving orbital drift, same direction as flight
+				rec.vel = {
+					x: (rng() * 2 - 1) * 14,
+					y: (rng() * 2 - 1) * 6,
+					z: -(CONFIG.ringOrbitSpeed + (rng() * 2 - 1) * CONFIG.ringOrbitSpread),
+				};
+			}
+			records.push(rec);
 		}
 		this.chunks.set(index, records.filter(Boolean));
 	}
@@ -356,6 +442,7 @@ export class AsteroidField {
 
 		this.uniforms.uBeat.value = Math.max(0, this.uniforms.uBeat.value - dt * 4);
 		this.gate.rotation.z += dt * 0.4;
+		this.gate2.rotation.z -= dt * 0.3;
 		this._gateRing.scale.setScalar(1 + this.uniforms.uBeat.value * 0.03);
 		this._ringMat.opacity = 0.3 + this.uniforms.uBeat.value * 0.45;
 	}

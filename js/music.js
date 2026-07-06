@@ -49,10 +49,13 @@ const SFX_BUS_GAIN = 0.9;
 //   S1: Em G D Am, twice     — more harmonic movement, still modal.
 //   S2: Em C Am B, rising    — same family, climbs across the 8-bar phrase
 //       before folding back to the loop point.
+//   S3: Em B G A Em B C D    — THE RINGS: lifted and gliding, dominant pull
+//       against soaring turns for the planet's ring system (stage 2).
 const SECTION_CHORD_ROOTS = [
   [40, 40, 48, 50, 40, 40, 48, 47], // S0: Em Em C D Em Em C B
   [40, 43, 50, 45, 40, 43, 50, 45], // S1: Em G D Am / Em G D Am
   [40, 48, 45, 47, 52, 48, 45, 59], // S2: Em C Am B, climbing to B5
+  [40, 47, 43, 45, 40, 47, 48, 50], // S3: Em B G A / Em B C D — the rings
 ];
 
 // Derezzed-style riff cells: semitone offsets from a bar's root, two 8-step
@@ -142,6 +145,18 @@ const MELODY_PHRASE_S2 = [
   [96, 6, 88, false], [102, 4, 91, true], [106, 6, 88, false],
   [112, 16, 83, false],
 ];
+// S3 — the rings: gliding long tones and wide upward leaps, less busy than
+// S2; the phrase floats over the B-major pull and resolves home late.
+const MELODY_PHRASE_S3 = [
+  [0, 8, 76, false], [8, 8, 83, false],
+  [16, 6, 81, false], [22, 4, 79, false], [26, 6, 81, false],
+  [32, 16, 78, false],
+  [48, 8, 79, false], [56, 8, 81, false],
+  [64, 8, 83, false], [72, 8, 88, false],
+  [80, 6, 86, false], [86, 4, 83, false], [90, 6, 86, false],
+  [96, 4, 88, false], [100, 4, 91, true], [104, 8, 88, false],
+  [112, 16, 79, false],
+];
 // Precomputed startStep -> note lookup per section, so the scheduler can
 // check "is there a melody note at this step" in O(1) — see _scheduleStep.
 function buildMelodyLookup(phrase) {
@@ -149,7 +164,7 @@ function buildMelodyLookup(phrase) {
   for (const [step, dur, midi, peak] of phrase) map.set(step, { dur, midi, peak });
   return map;
 }
-const MELODY_LOOKUP = [MELODY_PHRASE_S0, MELODY_PHRASE_S1, MELODY_PHRASE_S2].map(buildMelodyLookup);
+const MELODY_LOOKUP = [MELODY_PHRASE_S0, MELODY_PHRASE_S1, MELODY_PHRASE_S2, MELODY_PHRASE_S3].map(buildMelodyLookup);
 
 // Drum fill: a descending pitched tom hit on each of these steps, in the last
 // bar of every 8-bar phrase (intensity 2+) — see _triggerTomHit.
@@ -170,6 +185,7 @@ const PENTATONIC_SEQUENCES = [
   [64, 67, 69, 71, 74, 76, 79, 81, 83, 86, 88, 91, 93, 95, 98, 100],    // S0 — rooted on E
   [67, 69, 71, 74, 76, 79, 81, 83, 86, 88, 91, 93, 95, 98, 100, 103],  // S1 — rooted on G
   [71, 74, 76, 79, 81, 83, 86, 88, 91, 93, 95, 98, 100, 103, 105, 107], // S2 — rooted on B
+  [69, 71, 74, 76, 79, 81, 83, 86, 88, 91, 93, 95, 98, 100, 103, 105], // S3 — rooted on A (the rings)
 ];
 
 // Per-layer target gain by intensity level [0, 1, 2, 3].

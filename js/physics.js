@@ -190,6 +190,37 @@ export class RockPhysics {
 		this.b3.b3World_Explode(this.world, ex);
 	}
 
+	// tractor: velocity-steer a rock toward a target point (spring-ish, frame
+	// safe — used to hold captured debris in orbit around the ship)
+	steerTo(rec, target, dt, maxSpeed = 620) {
+		if (!this.ready) return;
+		const e = this._entries.get(rec);
+		if (!e) return;
+		const b3 = this.b3;
+		const p = b3.b3Body_GetPosition(e.body);
+		let dx = target.x - p.x, dy = target.y - p.y, dz = target.z - p.z;
+		const d = Math.hypot(dx, dy, dz);
+		const want = Math.min(maxSpeed, d * 4);
+		if (d > 0.001) { dx = dx / d * want; dy = dy / d * want; dz = dz / d * want; }
+		const v = b3.b3Body_GetLinearVelocity(e.body);
+		const blend = Math.min(1, dt * 9);
+		b3.b3Body_SetLinearVelocity(e.body, {
+			x: v.x + (dx - v.x) * blend,
+			y: v.y + (dy - v.y) * blend,
+			z: v.z + (dz - v.z) * blend,
+		});
+	}
+
+	// tractor release: hurl a rock in a direction at a fixed speed
+	fling(rec, dir, speed) {
+		if (!this.ready) return;
+		const e = this._entries.get(rec);
+		if (!e) return;
+		this.b3.b3Body_SetLinearVelocity(e.body, {
+			x: dir.x * speed, y: dir.y * speed, z: dir.z * speed,
+		});
+	}
+
 	// fragment inheritance: what was the parent doing when it shattered?
 	velocityOf(rec) {
 		if (!this.ready) return null;

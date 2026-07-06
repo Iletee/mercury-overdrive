@@ -214,8 +214,10 @@ export class SpaceBackdrop {
 	update(dt, shipPos, progress) {
 		// backdrop is glued to the ship: infinitely far away
 		this.root.position.copy(shipPos);
-		// ...except the planet swells with progress — that's the sense of arrival
-		const scale = 340 + progress * 1900;
+		// ...except the planet swells with progress — that's the sense of
+		// arrival, and stage 2 flies THROUGH its rings, so it keeps growing
+		// until it owns the sky
+		const scale = 340 + progress * 3400;
 		this.planet.scale.setScalar(scale);
 		this.planet.position.set(2400 - progress * 1400, 900 - progress * 500, -8200);
 		this.planet.rotation.y += dt * 0.01;

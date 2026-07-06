@@ -17,6 +17,7 @@ export class InputState {
 
 		this.firing = false;
 		this.painting = false; // multilock painting: hold Q, or hold RMB
+		this.tractoring = false; // hold E — tractor array (stage 2 pickup)
 		this._paintMouse = false;
 		this._paintKey = false;
 		this._tapL = 0; // double-tap timestamps for A/D barrel rolls
@@ -90,6 +91,7 @@ export class InputState {
 				this._paintKey = down;
 				this.painting = down || this._paintMouse;
 				break;
+			case 'KeyE': this.tractoring = down; break;
 		}
 		if (down) for (const h of this._keyHandlers) if (h.code === e.code) h.cb();
 	}
@@ -97,7 +99,7 @@ export class InputState {
 	_releaseAll() {
 		this._keys.clear();
 		this.steerX = this.steerY = 0;
-		this.firing = this.painting = this.boosting = this.braking = false;
+		this.firing = this.painting = this.tractoring = this.boosting = this.braking = false;
 		this._paintMouse = this._paintKey = false;
 		this.rollLeft = this.rollRight = false;
 	}

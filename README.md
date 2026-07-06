@@ -31,14 +31,26 @@ discrete GPU helps — the whole world blooms.
 | **Mouse** | Aim — the crosshair is a free turret cursor, fully decoupled from flight |
 | **Click** (hold) | Fire — bolts converge on the crosshair; near-crosshair enemies lock on, full locks home |
 | **Q / Right mouse** (hold) | **Multilock** (once the Multi-Phaser is claimed) — sweep the cursor to paint up to 6 locks, release to volley |
+| **E** (hold) | **Tractor** (once the Tractor Array is claimed) — gather debris into an orbital shield, release to fling it at the crosshair |
 | **Shift** | Boost (drains the meter; rings refill it) |
 | **X** | Brake — narrows the view into a steadier gun platform |
 | **A A / D D** (double-tap) | Barrel roll into that direction — sideways dodge with a moment of invulnerability |
 
 ## The run
 
-- **The gauntlet is seeded and finite** — 60,000 units, the same course every
-  run, generated in chunks ahead of you and recycled behind you.
+- **The gauntlet is seeded, finite, and two acts long** — 105,000 units, the
+  same course every run, generated in chunks ahead of you and recycled
+  behind you. Act one is the meteorite gauntlet; beat the Architect and its
+  gate opens into **THE RINGS** — the destination planet's ring system.
+- **The rings are a different world.** A flat, co-moving debris sheet banded
+  with gap channels: most rocks orbit in your direction of flight, so the
+  bands read as a convoy — surf alongside a boulder as moving cover, or
+  feed it to the enemies. The planet fills the sky. The music lifts into
+  its own fourth section.
+- **The Tractor Array** waits deep in the bands (~73k): hold **E** to drag
+  nearby debris into a whirling orbital shield that soaks enemy fire,
+  release to fling the whole cloud where you're aiming — the kinetic-kill
+  rules turn it into a shotgun.
 - **The route snakes and forks.** Guidance rings mark the flyable lanes;
   at each split, pink is the right lane and cyan the left, merging again
   downstream. Twice per run the corridor squeezes tight and fills with debris.
@@ -118,6 +130,7 @@ wired to it:
 | `js/ship.js` | Flight model, chase camera, barrel rolls, shield, procedural ship |
 | `js/field.js` | Seeded chunked asteroid field, route/fork system, collectible rings |
 | `js/physics.js` | Box3D rock physics — the bubble, blasts, kicks, impact chipping |
+| `js/tractor.js` | The Tractor Array — orbital debris shield / kinetic shotgun |
 | `js/volumetric.js` | Raymarched volumetric pulsar light with shadow-carved god rays |
 | `js/enemies.js` | Shard / Seeker / Bastion behaviors |
 | `js/boss.js` | THE ARCHITECT — shield lattice, beam sweeps, vents, novas, derez |

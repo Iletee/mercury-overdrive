@@ -21,6 +21,7 @@ import { HUD } from './hud.js';
 import { ArchitectBoss } from './boss.js';
 import { RockPhysics } from './physics.js';
 import { VolumetricPulsarLight } from './volumetric.js';
+import { TractorArray } from './tractor.js';
 
 const State = { TITLE: 0, PLAYING: 1, GAMEOVER: 2, VICTORY: 3 };
 
@@ -36,6 +37,9 @@ let hitstop = 0; // brief time-dilation on kills — makes hits land
 let phaserClaimed = false;  // the Multi-Phaser (multilock + lead unlock)
 let phaserTelegraphed = false;
 let bossEngaged = false;
+let inRings = false;        // stage 2 — past the Architect's gate
+let tractorClaimed = false; // the Tractor Array (stage 2 pickup)
+let tractorTelegraphed = false;
 
 // --- renderer / scene / camera -------------------------------------------
 const container = document.getElementById('world');
@@ -83,6 +87,31 @@ physics.init();
 field.physics = physics;
 // volumetric god rays from the pulsar; the rocks carve shadows through them
 const volumetric = new VolumetricPulsarLight(scene, renderer, field);
+const tractor = new TractorArray(ship, field, physics);
+
+// --- the Tractor Array: stage 2's pickup, deep in the ring bands
+const tractorPickup = new THREE.Group();
+const tractorInner = new THREE.Mesh(
+	new THREE.OctahedronGeometry(48, 0),
+	new THREE.MeshStandardMaterial({
+		color: 0x12081f, roughness: 0.3, metalness: 0.7, flatShading: true,
+		emissive: Colors.orange, emissiveIntensity: 0.9,
+	})
+);
+const tractorInnerEdges = new THREE.LineSegments(
+	new THREE.EdgesGeometry(tractorInner.geometry),
+	new THREE.LineBasicMaterial({ color: Colors.lightOrange, transparent: true, opacity: 0.95 })
+);
+const tractorOuter = new THREE.LineSegments(
+	new THREE.EdgesGeometry(new THREE.IcosahedronGeometry(70, 0)),
+	new THREE.LineBasicMaterial({ color: Colors.orange, transparent: true, opacity: 0.8 })
+);
+tractorPickup.add(tractorInner, tractorInnerEdges, tractorOuter);
+{
+	const c = field.routeCenters(CONFIG.tractorZ)[0];
+	tractorPickup.position.set(c.x, c.y, -CONFIG.tractorZ);
+}
+scene.add(tractorPickup);
 
 // --- the Multi-Phaser: the multilock powerup, waiting on the centerline
 // at the exit of squeeze 1. Fly through it to claim.
@@ -256,6 +285,31 @@ music.onBeat(({ beat, bar }) => {
 	if (bossEngaged && !boss.defeated) boss.beat(beat, bar);
 });
 
+function claimTractor(auto) {
+	tractorClaimed = true;
+	tractorPickup.visible = false;
+	tractor.enabled = true;
+	music.gateChime();
+	fx.spawnShockwave(tractorPickup.position, Colors.orange, 4);
+	fx.spawnExplosion(tractorPickup.position, Colors.orange, 2.5);
+	hitstop = 0.15;
+	ship.shake(0.6);
+	hud.showWave(auto ? 'TRACTOR ARRAY ABSORBED' : 'TRACTOR ARRAY ONLINE');
+	setTimeout(() => {
+		if (state === State.PLAYING) hud.showWave('HOLD E TO GATHER DEBRIS — RELEASE TO FLING');
+	}, 2300);
+}
+
+// tractor fling aims where you're pointing — same ray as the guns
+const _aimRay = new THREE.Raycaster();
+const _aimNdc = new THREE.Vector2();
+const _aimDir = new THREE.Vector3(0, 0, -1);
+function updateAimDir() {
+	_aimNdc.set(input.mouseX, input.mouseY);
+	_aimRay.setFromCamera(_aimNdc, camera);
+	_aimDir.copy(_aimRay.ray.direction);
+}
+
 function claimPhaser(auto) {
 	phaserClaimed = true;
 	phaser.visible = false;
@@ -322,6 +376,11 @@ function restart() {
 	phaserClaimed = false;
 	phaserTelegraphed = false;
 	phaser.visible = true;
+	inRings = false;
+	tractorClaimed = false;
+	tractorTelegraphed = false;
+	tractorPickup.visible = true;
+	tractor.reset();
 	score = 0;
 	elapsed = 0;
 	waveIndex = 0;
@@ -386,6 +445,28 @@ function updatePlaying(dt) {
 		if (ship.position.distanceTo(phaser.position) < CONFIG.phaserRadius) claimPhaser(false);
 		else if (ship.progressZ > CONFIG.phaserAutoGrantZ) claimPhaser(true);
 	}
+
+	// crossing the Architect's gate: STAGE 2 — the rings of the destination
+	if (!inRings && ship.progressZ > CONFIG.stage1End + 300) {
+		inRings = true;
+		hud.showWave('THE RINGS — RIDE THE BANDS');
+		music.gateChime();
+	}
+
+	// the Tractor Array: stage 2's pickup, claimed by flying through
+	if (inRings && !tractorClaimed) {
+		tractorPickup.rotation.y -= dt * 0.8;
+		tractorPickup.rotation.x += dt * 0.3;
+		tractorOuter.rotation.z -= dt * 0.6;
+		if (!tractorTelegraphed && ship.progressZ > CONFIG.tractorZ - 1600) {
+			tractorTelegraphed = true;
+			hud.showWave('TRACTOR ARRAY AHEAD');
+		}
+		if (ship.position.distanceTo(tractorPickup.position) < CONFIG.tractorRadius) claimTractor(false);
+		else if (ship.progressZ > CONFIG.tractorZ + 1200) claimTractor(true);
+	}
+	updateAimDir();
+	tractor.update(dt, input, _aimDir);
 
 	// the Architect: engages before the gate; the run holds until it falls
 	if (!bossEngaged && ship.progressZ >= CONFIG.bossStartZ) {
@@ -489,12 +570,12 @@ function updatePlaying(dt) {
 		if (multTimer <= 0) { scoreMult = 1; hud.setStreak(ringStreak, 1); }
 	}
 
-	// waves keyed to progress; clean flying earns an escort of bonus targets
-	// (a lighter escort in the multilock half, where waves are already dense)
+	// waves keyed to course distance; clean flying earns an escort of bonus
+	// targets (lighter after the Phaser, where waves are already dense)
 	const p = progress();
-	while (waveIndex < WAVES.length && p >= WAVES[waveIndex].at) {
+	while (waveIndex < WAVES.length && ship.progressZ >= WAVES[waveIndex].at) {
 		const w = WAVES[waveIndex];
-		const bonus = p < 0.44 ? 2 : 1;
+		const bonus = w.at < CONFIG.phaserZ ? 2 : 1;
 		const spec = ringStreak >= 6 ? { ...w, shards: (w.shards || 0) + bonus } : w;
 		enemies.spawnWave(spec);
 		if (w.text) hud.showWave(w.text);
@@ -507,10 +588,11 @@ function updatePlaying(dt) {
 
 	// HUD
 	// the soundtrack BUILDS across the run: pad+kick at launch, the riff at
-	// p 0.05, the full band at 0.30 — and the lead only enters when the
-	// Multi-Phaser is claimed (see claimPhaser). Sections still track thirds.
-	music.setSection(Math.min(2, Math.floor(p * 3)));
-	music.setIntensity(p > 0.30 ? 3 : (p > 0.05 ? 2 : 1));
+	// 3km, the full band at 18km — and the lead only enters when the
+	// Multi-Phaser is claimed (see claimPhaser). Stage 1 walks sections
+	// 0-2 by thirds; the rings get their own section 3.
+	music.setSection(inRings ? 3 : Math.min(2, Math.floor(ship.progressZ / 20000)));
+	music.setIntensity(ship.progressZ > 18000 ? 3 : (ship.progressZ > 3000 ? 2 : 1));
 	_presence.shard = _presence.seeker = _presence.bastion = 0;
 	for (const e of enemies.active) _presence[e.type] += 1;
 	music.setPresence(_presence);
@@ -610,4 +692,4 @@ window.addEventListener('resize', () => {
 loop();
 
 // debug handle for automated testing
-window.__mo = { field, ship, enemies, weapons, music, backdrop, boss, input, phaser, physics, volumetric };
+window.__mo = { field, ship, enemies, weapons, music, backdrop, boss, input, phaser, physics, volumetric, tractor };

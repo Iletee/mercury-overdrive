@@ -12,8 +12,12 @@ export const Colors = {
 };
 
 export const CONFIG = {
-	// The run: perpetually generated but finite
-	courseLength: 60000,     // units from start to the finish gate
+	// The run: perpetually generated but finite. Two stages: the meteorite
+	// gauntlet (0..stage1End, ends at the Architect's gate), then THE RINGS —
+	// the destination planet's ring system, flat co-moving debris bands with
+	// gap channels, ending at the final gate.
+	courseLength: 105000,    // total: stage 1 (60k) + the rings (45k)
+	stage1End: 60000,        // the Architect's gate — crossing it enters the rings
 	chunkDepth: 2000,        // field generation slab depth
 	chunksAhead: 5,          // slabs kept generated in front of the ship
 	seed: 1984,              // deterministic field — same gauntlet every run
@@ -28,6 +32,7 @@ export const CONFIG = {
 		{ start: 9000, end: 21000 },
 		{ start: 27000, end: 39000 },
 		{ start: 45000, end: 57000 },
+		{ start: 76000, end: 90000 },  // the rings: split around the shepherd swarm
 	],
 	routeRingSpacing: 1500,  // guidance rings along each corridor
 	// squeeze zones: the corridor narrows and fills with debris — thread it
@@ -79,10 +84,24 @@ export const CONFIG = {
 	multilockRegen: 1.5,     // seconds to regain one lock charge
 	multilockRingBonus: 2,   // lock charges per ring threaded
 
-	// The Architect — boss fight before the gate
-	bossStartZ: 54000,       // the Architect engages here (p 0.90)
+	// The Architect — boss fight before the stage 1 gate
+	bossStartZ: 54000,       // the Architect engages here
 	bossArenaSpeed: 150,     // forward speed cap during the fight
-	bossHoldZ: 59200,        // the run never passes this while the boss lives
+	bossHoldZ: 59200,        // stage 1 never ends while the boss lives
+
+	// The Rings (stage 2): flat debris bands orbiting the destination planet
+	ringPlaneSpread: 170,    // vertical thickness of the main debris sheet
+	ringOrbitSpeed: 110,     // co-moving band speed (same direction as flight)
+	ringOrbitSpread: 80,     // ± variation per rock
+
+	// Tractor Array — stage 2 pickup. Hold E to gather nearby debris into a
+	// protective orbit; release to fling the whole cloud where you're aiming.
+	tractorZ: 73000,
+	tractorRadius: 200,      // fly-through claim radius
+	tractorReach: 750,       // gather range
+	tractorMaxRocks: 8,
+	tractorOrbitR: 95,       // holding-shell radius around the ship
+	tractorFlingSpeed: 950,
 
 	// Scoring
 	scoreAsteroid: 50,
@@ -91,19 +110,29 @@ export const CONFIG = {
 	scoreBastion: 1500,
 };
 
-// Enemy waves keyed to run progress (fraction 0..1). Front half (pre-Core)
-// is the single-lock tutorial; from the Core (p 0.44) on, every wave is a
-// simultaneous/swarm problem that a painted multilock volley answers.
+// Enemy waves keyed to course distance (units). Stage 1 front half (pre-
+// Phaser) is the single-lock tutorial; from the Multi-Phaser (26.5k) on,
+// every wave is a swarm problem the painted volley answers. Stage 2 (the
+// rings) leans on the environment: seekers die to the bands, the tractor
+// turns the bands into ammunition.
 export const WAVES = [
-	{ at: 0.07, shards: 3, seekers: 0, bastions: 0, text: 'HOSTILES INBOUND' },
-	{ at: 0.19, shards: 0, seekers: 4, bastions: 0, text: 'SEEKERS LAUNCHED' },
-	{ at: 0.31, shards: 2, seekers: 0, bastions: 1, text: 'BASTION DETECTED' },
-	{ at: 0.45, shards: 3, seekers: 4, bastions: 0, text: null },              // fires as the Core is claimed
-	{ at: 0.50, shards: 6, seekers: 0, bastions: 0, text: 'PAINT THE FORMATION' },
-	{ at: 0.57, shards: 0, seekers: 4, bastions: 2, text: 'HEAVY RESISTANCE' },
-	{ at: 0.65, shards: 2, seekers: 3, bastions: 0, text: 'SEEKER SWARM' },
-	{ at: 0.665, shards: 0, seekers: 3, bastions: 0, text: null },             // swarm's second trio, staggered
-	{ at: 0.71, shards: 3, seekers: 0, bastions: 0, text: null },              // inside squeeze 2 — volley-clear
-	{ at: 0.79, shards: 3, seekers: 2, bastions: 1, text: 'FINAL PICKET' },
-	{ at: 0.86, shards: 0, seekers: 0, bastions: 0, text: 'CORE SIGNATURE DETECTED' },
+	{ at: 4200, shards: 3, seekers: 0, bastions: 0, text: 'HOSTILES INBOUND' },
+	{ at: 11400, shards: 0, seekers: 4, bastions: 0, text: 'SEEKERS LAUNCHED' },
+	{ at: 18600, shards: 2, seekers: 0, bastions: 1, text: 'BASTION DETECTED' },
+	{ at: 27000, shards: 3, seekers: 4, bastions: 0, text: null },             // fires as the Phaser is claimed
+	{ at: 30000, shards: 6, seekers: 0, bastions: 0, text: 'PAINT THE FORMATION' },
+	{ at: 34200, shards: 0, seekers: 4, bastions: 2, text: 'HEAVY RESISTANCE' },
+	{ at: 39000, shards: 2, seekers: 3, bastions: 0, text: 'SEEKER SWARM' },
+	{ at: 39900, shards: 0, seekers: 3, bastions: 0, text: null },             // swarm's second trio, staggered
+	{ at: 42600, shards: 3, seekers: 0, bastions: 0, text: null },             // inside squeeze 2 — volley-clear
+	{ at: 47400, shards: 3, seekers: 2, bastions: 1, text: 'FINAL PICKET' },
+	{ at: 51600, shards: 0, seekers: 0, bastions: 0, text: 'CORE SIGNATURE DETECTED' },
+	// —— the rings ——
+	{ at: 63500, shards: 4, seekers: 0, bastions: 0, text: 'RING HOSTILES' },
+	{ at: 69000, shards: 0, seekers: 5, bastions: 0, text: 'SEEKERS — USE THE BANDS' },
+	{ at: 75500, shards: 3, seekers: 0, bastions: 1, text: 'GATHER AND FLING' },
+	{ at: 82000, shards: 0, seekers: 4, bastions: 1, text: null },
+	{ at: 88500, shards: 6, seekers: 0, bastions: 0, text: 'FORMATION IN THE BANDS' },
+	{ at: 95500, shards: 2, seekers: 4, bastions: 2, text: 'FINAL GUARD' },
+	{ at: 101000, shards: 0, seekers: 0, bastions: 0, text: 'THE LAST GATE' },
 ];

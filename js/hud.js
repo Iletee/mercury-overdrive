@@ -360,6 +360,7 @@ export class HUD {
 			['MOUSE', 'aim'],
 			['CLICK', 'fire'],
 			['Q', 'multilock'],
+			['E', 'tractor'],
 			['SHIFT', 'boost'],
 			['X', 'brake'],
 			['A·A / D·D', 'barrel roll'],
