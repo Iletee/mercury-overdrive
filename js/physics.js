@@ -8,7 +8,7 @@
 
 import Box3D from 'box3d.js/inline';
 
-const BUBBLE_AHEAD = 2600;   // course units simulated in front of the ship
+const BUBBLE_AHEAD = 4000;   // covers bolt range — kills always birth live fragments
 const BUBBLE_BEHIND = 500;
 const BUBBLE_X = 2300;       // lateral extent (backdrop monoliths stay scripted)
 const BUBBLE_Y = 1600;
@@ -101,6 +101,11 @@ export class RockPhysics {
 	_retire(rec) {
 		const e = this._entries.get(rec);
 		if (!e) return;
+		// hand real momentum back to the record: outside the bubble the field
+		// integrates rec.vel kinematically, so a shoved rock keeps flying
+		const v = this.b3.b3Body_GetLinearVelocity(e.body);
+		rec.vel = (v.x * v.x + v.y * v.y + v.z * v.z > 25)
+			? { x: v.x, y: v.y, z: v.z } : null;
 		this._entries.delete(rec);
 		this._byBody.delete(e.bodyKey);
 		this._byShape.delete(e.shapeKey);

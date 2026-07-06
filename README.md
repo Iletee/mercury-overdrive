@@ -56,10 +56,15 @@ discrete GPU helps — the whole world blooms.
   [box3d.js](https://github.com/isaac-mason/box3d.js) WASM bindings): rocks
   drift, tumble, and collide; bolts knock them around; every explosion is a
   real blast wave. Rocks that slam into each other hard enough chip apart.
-- **Everything is destructible.** Asteroid HP scales with size; big rocks
-  calve into fragments that inherit their parent's momentum — a shattered
-  rock is a hazard, not a disappearance. Enemy fire chips rocks too, and
-  their bolts fly toward *you*, so so does the debris they knock loose.
+- **Everything is destructible — and the field fights.** Asteroid HP scales
+  with size; big rocks calve into fragments that inherit their parent's
+  momentum. Some rocks are **drifters**, cutting across the carved lanes on
+  their own. Enemy fire chips rocks too, and their bolts fly toward *you*,
+  so so does the debris they knock loose.
+- **Physics is a weapon.** A rock's death blast damages enemies caught in
+  it — shooting the boulder next to a bastion is a legitimate tactic. Rocks
+  flung by volleys and blasts kill what they hit, and seekers detonate on
+  any rock they clip: dodge around a boulder and let them eat it.
 - **Three enemy types** with distinct silhouettes, behaviors, and scores:
   Shards (strafing formation drones that fire on the beat), Seekers
   (kamikaze pursuers), Bastions (heavy burst-fire turrets). Radar pings

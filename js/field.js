@@ -267,7 +267,17 @@ export class AsteroidField {
 					y = c.y + Math.sin(ang) * out;
 				}
 			}
-			records.push(this._spawn(rng, x, y, z, r));
+			const rec = this._spawn(rng, x, y, z, r);
+			// drifters: some smaller rocks cut across the corridor — moving
+			// jeopardy that the carved-clear lanes can't promise away
+			if (rec && r <= 60 && rng() < 0.12) {
+				const c = centers[Math.floor(rng() * centers.length)];
+				const dx = c.x - rec.pos.x, dy = c.y - rec.pos.y;
+				const d = Math.max(1, Math.hypot(dx, dy));
+				const speed = 45 + rng() * 50;
+				rec.vel = { x: (dx / d) * speed, y: (dy / d) * speed, z: (rng() - 0.5) * 20 };
+			}
+			records.push(rec);
 		}
 		// backdrop monoliths: kilometre-class, parked outside the flight corridor
 		for (let i = 0; i < 2; i++) {
@@ -325,9 +335,16 @@ export class AsteroidField {
 		}
 
 		// tumble + write matrices (physics-owned rocks get pos/quat from their
-		// rigid body — see physics.js — so only scripted rocks integrate spin)
+		// rigid body — see physics.js — so only scripted rocks integrate spin,
+		// plus a kinematic fallback so drifters and flung fragments keep
+		// moving even outside the physics bubble)
 		for (const rec of this.records) {
 			if (!rec.simulated) {
+				if (rec.vel) {
+					rec.pos.x += rec.vel.x * dt;
+					rec.pos.y += rec.vel.y * dt;
+					rec.pos.z += rec.vel.z * dt;
+				}
 				this._q.setFromAxisAngle(rec.axis, rec.spin * dt);
 				rec.quat.premultiply(this._q);
 			}

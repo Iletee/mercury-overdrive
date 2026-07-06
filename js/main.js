@@ -128,25 +128,30 @@ weapons.events.onLockChange = (lockState) => {
 	if (lockState === 'locked') music.lockOn();
 };
 
+// the full kill payoff — fx, hitstop, music, a blast into the rock field, score
+function enemyKillFx(e) {
+	const big = e.type === 'bastion' || e.type === 'bosscore';
+	fx.spawnExplosion(e.position, e.color, big ? 3 : 1.5);
+	fx.spawnShockwave(e.position, e.color, big ? 3 : 1.3);
+	hitstop = big ? 0.1 : 0.06;
+	ship.shake(big ? 0.5 : 0.25);
+	music.explosion(big);
+	physics.blast(e.position, big ? 420 : 260, big ? 5200 : 3200);
+	addScore(e.score);
+}
+
 weapons.events.onEnemyHit = (e, point, dmg = 1) => {
 	fx.spawnHitSpark(point, e.color);
-	if (enemies.damage(e, dmg)) {
-		const big = e.type === 'bastion' || e.type === 'bosscore';
-		fx.spawnExplosion(e.position, e.color, big ? 3 : 1.5);
-		fx.spawnShockwave(e.position, e.color, big ? 3 : 1.3);
-		hitstop = big ? 0.1 : 0.06;
-		ship.shake(big ? 0.5 : 0.25);
-		music.explosion(big);
-		physics.blast(e.position, big ? 420 : 260, big ? 5200 : 3200);
-		addScore(e.score);
-	}
+	if (enemies.damage(e, dmg)) enemyKillFx(e);
 };
 
 // multilock: each paint is a note walking up the scale; the volley strums
 weapons.events.onPaint = (k) => music.multilockPaint(k);
 weapons.events.onVolley = (n) => music.multilockVolley(n);
 
-// a rock died — fx, music, a real blast wave into the field, maybe score
+// a rock died — fx, music, a real blast wave into the field, maybe score.
+// The blast is a WEAPON: enemies caught inside it take real damage, so
+// shooting the rock next to a bastion is a legitimate tactic.
 function rockDestroyed(rec, byPlayer) {
 	fx.spawnExplosion(rec.pos, Colors.orange, Math.max(1, rec.r / 18));
 	if (rec.r > 55) {
@@ -154,7 +159,13 @@ function rockDestroyed(rec, byPlayer) {
 		if (byPlayer) hitstop = 0.05;
 	}
 	music.explosion(rec.r > 120);
-	physics.blast(rec.pos, rec.r * 2.4 + 120, rec.r > 55 ? 2600 : 1500);
+	const blastR = rec.r * 2.4 + 120;
+	physics.blast(rec.pos, blastR, rec.r > 55 ? 2600 : 1500);
+	for (const e of [...enemies.active]) {
+		if (!e.alive) continue;
+		if (e.position.distanceTo(rec.pos) < blastR
+			&& enemies.damage(e, rec.r > 55 ? 2 : 1)) enemyKillFx(e);
+	}
 	if (byPlayer) addScore(Math.round(CONFIG.scoreAsteroid + rec.r * 2)); // big rocks pay big
 }
 
@@ -404,6 +415,29 @@ function updatePlaying(dt) {
 	if (ship.boostEngaged !== wasBoosting) {
 		music.boost(ship.boostEngaged);
 		wasBoosting = ship.boostEngaged;
+	}
+
+	// enemies vs rocks: the field is a weapon and a hazard for everyone.
+	// Seekers detonate on any rock they clip; anything else dies to a rock
+	// moving fast enough — volley a cluster toward a bastion and watch.
+	for (const e of [...enemies.active]) {
+		if (!e.alive) continue;
+		if (e._smashCd && elapsed < e._smashCd) continue; // grinding ≠ instakill
+		const rockHit = field.collideSphere(e.position, e.radius + 4);
+		if (!rockHit) continue;
+		const rec = rockHit.record;
+		let smash = e.type === 'seeker';
+		if (!smash && rec.simulated) {
+			const v = physics.velocityOf(rec);
+			smash = !!v && v.x * v.x + v.y * v.y + v.z * v.z > 70 * 70;
+		} else if (!smash && rec.vel) {
+			smash = rec.vel.x ** 2 + rec.vel.y ** 2 + rec.vel.z ** 2 > 70 * 70;
+		}
+		if (!smash) continue;
+		e._smashCd = elapsed + 0.5;
+		fx.spawnHitSpark(e.position, e.color);
+		if (enemies.damage(e, 3)) enemyKillFx(e);
+		if (field.damage(rec, 1)) rockDestroyed(rec, true);
 	}
 
 	// ship vs rock
