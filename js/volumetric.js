@@ -192,8 +192,8 @@ export class VolumetricPulsarLight {
 		// pointed through the course around the ship.
 		this.light = new THREE.SpotLight(Colors.cyan, 0.4);
 		this.light.decay = 0;
-		this.light.angle = 0.5;
-		this.light.penumbra = 0.5;
+		this.light.angle = 0.65; // a broad, soft wash rather than a tight shaft
+		this.light.penumbra = 0.55;
 		this.light.castShadow = true;
 		this.light.shadow.mapSize.set(1024, 1024);
 		this.light.shadow.camera.near = 800;
@@ -238,8 +238,8 @@ export class VolumetricPulsarLight {
 				uColorBottom: { value: new THREE.Color(0.22, 0.09, 0.42) },
 				// integrated over ~9 box-units and then hit by ACES + bloom, so
 				// these are an order of magnitude below the source demo's values
-				uHaloIntensity: { value: 0.12 },
-				uIntensity: { value: 0.07 },
+				uHaloIntensity: { value: 0.1 },
+				uIntensity: { value: 0.05 },
 				uAttenuation: { value: 0.045 },
 				uFalloff: { value: 0.16 },
 				uUnit: { value: UNIT },
