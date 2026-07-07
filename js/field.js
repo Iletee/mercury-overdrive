@@ -333,7 +333,7 @@ export class AsteroidField {
 		const D = CONFIG.chunkDepth;
 		const z0 = -index * D;
 		const records = [];
-		const count = Math.round(46 + 26 * rng());
+		const count = Math.round(84 + 40 * rng()); // the rings run DENSE
 		for (let i = 0; i < count; i++) {
 			const z = z0 - rng() * D;
 			let x = (rng() * 2 - 1) * 2300;
@@ -346,9 +346,9 @@ export class AsteroidField {
 			if (rng() > 0.9) y = planeY + (rng() * 2 - 1) * 520;
 			const roll = rng();
 			let r;
-			if (roll > 0.965) r = 150 + rng() * 160;       // shepherd boulders
-			else if (roll > 0.8) r = 55 + rng() * 70;
-			else r = 9 + rng() * 34;
+			if (roll > 0.975) r = 150 + rng() * 160;       // shepherd boulders
+			else if (roll > 0.87) r = 55 + rng() * 70;
+			else r = 6 + rng() * 26;                        // mostly micrometeorites
 			// carve the flyable corridors here too
 			const centers = this.routeCenters(-z);
 			const lane = this.corridorRadiusAt(-z);

@@ -44,13 +44,17 @@ discrete GPU helps — the whole world blooms.
   gate opens into **THE RINGS** — the destination planet's ring system.
 - **The rings are a different world.** Crossing the gate plays a scripted
   dive — the ship noses over and flares out onto the band plane while the
-  planet swings up to own the entire sky. The bands are a flat, co-moving
-  debris sheet with gap channels: most rocks orbit in your direction of
-  flight, colliding and fracturing among themselves — surf alongside a
-  boulder as moving cover, or feed it to the enemies. The music flips into
-  a driving second arrangement: gallop bass, early 16th hats, a busier
-  lead over the fourth section's chords. (Dev kindness: dying in the rings
-  respawns you at the rings.)
+  planet swings up to own the entire sky and the *whole skybox goes
+  ring-neon*: teal haze, hot gold ringlets, and a micrometeor storm several
+  times denser than the gauntlet. The bands are a flat, co-moving debris
+  sheet with gap channels: most rocks orbit in your direction of flight,
+  colliding and fracturing among themselves — surf alongside a boulder as
+  moving cover, or feed it to the enemies. **Contacts ambush from behind
+  the shepherd boulders** — exactly where a gathered tractor cloud shines.
+  The music becomes its own track: same 118 BPM grid, but cosmic and
+  drummy — large pads, a syncopated tom groove, gallop bass, and a
+  separate soaring melody with long held tones. (Dev kindness: dying in
+  the rings respawns you at the rings.)
 - **The Tractor Array** waits deep in the bands (~73k): hold **E** to drag
   nearby debris into a whirling orbital shield that soaks enemy fire,
   release to fling the whole cloud where you're aiming — the kinetic-kill

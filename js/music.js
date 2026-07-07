@@ -145,17 +145,18 @@ const MELODY_PHRASE_S2 = [
   [96, 6, 88, false], [102, 4, 91, true], [106, 6, 88, false],
   [112, 16, 83, false],
 ];
-// S3 — the rings: gliding long tones and wide upward leaps, less busy than
-// S2; the phrase floats over the B-major pull and resolves home late.
+// S3 — the rings: a separate tune, not a variation. Cosmic — long held
+// tones, one huge octave leap, wide slow arcs coming down, the peak landing
+// late. Reads as weightless over the driving stage-2 drums beneath it.
 const MELODY_PHRASE_S3 = [
-  [0, 8, 76, false], [8, 8, 83, false],
-  [16, 6, 81, false], [22, 4, 79, false], [26, 6, 81, false],
-  [32, 16, 78, false],
-  [48, 8, 79, false], [56, 8, 81, false],
-  [64, 8, 83, false], [72, 8, 88, false],
-  [80, 6, 86, false], [86, 4, 83, false], [90, 6, 86, false],
-  [96, 4, 88, false], [100, 4, 91, true], [104, 8, 88, false],
-  [112, 16, 79, false],
+  [0, 12, 76, false], [12, 4, 79, false],
+  [16, 16, 88, false],                      // the leap: E5 -> E6, held whole
+  [32, 8, 86, false], [40, 8, 83, false],
+  [48, 12, 81, false], [60, 4, 79, false],
+  [64, 16, 83, false],
+  [80, 8, 84, false], [88, 4, 83, false], [92, 4, 79, false],
+  [96, 12, 78, false], [108, 4, 88, true],  // F# suspension into the peak
+  [112, 16, 76, false],
 ];
 // Precomputed startStep -> note lookup per section, so the scheduler can
 // check "is there a melody note at this step" in O(1) — see _scheduleStep.
@@ -711,6 +712,11 @@ export class SynthwaveEngine {
     if (this._stage2 && lvl >= 2 && step % 4 === 2) {
       this._triggerGallop(this._activeChordRoots[phraseBar], time);
     }
+    // ...and a syncopated tom groove every bar (16ths ahead of beats 2 and
+    // 4) — the "drummy" in the rings' cosmic-and-drummy brief.
+    if (this._stage2 && lvl >= 2 && (step === 3 || step === 11)) {
+      this._triggerTomHit(step === 3 ? 1 : 2, time);
+    }
 
     // Level 3+: 16th closed hats (a level early in the rings), accent
     // stabs, riser into the phrase turn.
@@ -772,7 +778,9 @@ export class SynthwaveEngine {
     const lvl = this._currentIntensity;
     // Pads get a slower ~0.4s attack (task 2) rather than the snappy 50ms
     // used everywhere else — a synth-pad swell-in instead of a jump.
-    this._rampGain(this.padGain, LAYER_GAIN.pad[lvl], time, 0.4);
+    // the rings breathe on LARGE pads — +4.5dB over the gauntlet's bed
+    const padTarget = LAYER_GAIN.pad[lvl] * (this._stage2 ? dbToGain(4.5) : 1);
+    this._rampGain(this.padGain, padTarget, time, 0.4);
     this._rampGain(this.pulseGain, LAYER_GAIN.pulse[lvl], time);
     this._rampGain(this.kickGain, LAYER_GAIN.kick[lvl], time);
     this._rampGain(this.percGain, LAYER_GAIN.perc[lvl], time);
@@ -1026,12 +1034,15 @@ export class SynthwaveEngine {
       modDepth.gain.exponentialRampToValueAtTime(freq * 0.35, time + 0.16);
       mod.connect(modDepth); modDepth.connect(carrier.frequency);
 
-      // Quiet octave-up sine — the sparkle on top, decays quickest.
+      // Quiet high sine — the sparkle on top, decays quickest. In the rings
+      // it sits an octave higher still and rings longer: cosmic, not clubby.
       const spark = ctx.createOscillator();
-      spark.type = 'sine'; spark.frequency.value = freq * 2; spark.detune.value = detune;
+      spark.type = 'sine';
+      spark.frequency.value = freq * (this._stage2 ? 3 : 2);
+      spark.detune.value = detune;
       const sparkGain = ctx.createGain();
-      sparkGain.gain.setValueAtTime(0.18, time);
-      sparkGain.gain.exponentialRampToValueAtTime(0.002, time + 0.22);
+      sparkGain.gain.setValueAtTime(this._stage2 ? 0.24 : 0.18, time);
+      sparkGain.gain.exponentialRampToValueAtTime(0.002, time + (this._stage2 ? 0.5 : 0.22));
 
       const pan = ctx.createStereoPanner(); pan.pan.value = panVal;
       carrier.connect(pan); spark.connect(sparkGain); sparkGain.connect(pan);
@@ -1043,13 +1054,14 @@ export class SynthwaveEngine {
     }
 
     // Struck-key amplitude: instant attack, exponential body, note-length
-    // release. Long notes ring like a held e-piano key instead of droning.
+    // release. Long notes ring like a held e-piano key instead of droning;
+    // the rings sustain higher and release slower — held tones that float.
     const peakAmp = 0.5 * velocity;
     const g = toneGain.gain;
     g.setValueAtTime(0.0001, time);
     g.linearRampToValueAtTime(peakAmp, time + 0.006);
-    g.setTargetAtTime(peakAmp * 0.35, time + 0.01, 0.24);
-    g.setTargetAtTime(0.0001, time + dur, 0.07);
+    g.setTargetAtTime(peakAmp * (this._stage2 ? 0.5 : 0.35), time + 0.01, this._stage2 ? 0.4 : 0.24);
+    g.setTargetAtTime(0.0001, time + dur, this._stage2 ? 0.14 : 0.07);
     toneGain.connect(this.leadGain);
 
     // Space: the 3/16 delay send...

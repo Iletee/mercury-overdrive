@@ -19,6 +19,7 @@ const NEBULA_VERT = /* glsl */`
 const NEBULA_FRAG = /* glsl */`
 	varying vec3 vDir;
 	uniform float uBeat;
+	uniform float uRings; // 0 = deep space, 1 = inside the neon ring system
 
 	float hash(vec3 p) {
 		p = fract(p * 0.3183099 + 0.1);
@@ -47,12 +48,28 @@ const NEBULA_FRAG = /* glsl */`
 		vec3 cyan = vec3(0.05, 0.45, 0.5);
 
 		float n = fbm(d * 3.0 + vec3(7.0));
+		float f5 = fbm(d * 5.0);
+		float f8 = fbm(d * 8.0 + vec3(3.0));
 		float band = smoothstep(0.35, 0.0, abs(d.y + 0.15)) ; // galactic band near horizon
 		vec3 col = deep;
 		col = mix(col, purple, smoothstep(0.35, 0.75, n));
-		col = mix(col, magenta * (0.9 + 0.25 * uBeat), band * smoothstep(0.5, 0.85, fbm(d * 5.0)));
-		col = mix(col, cyan, band * smoothstep(0.65, 0.95, fbm(d * 8.0 + vec3(3.0))) * 0.6);
+		col = mix(col, magenta * (0.9 + 0.25 * uBeat), band * smoothstep(0.5, 0.85, f5));
+		col = mix(col, cyan, band * smoothstep(0.65, 0.95, f8) * 0.6);
 		col *= 0.75 + 0.35 * band;
+
+		// inside the ring system the whole sky goes ring-coloured: neon teal
+		// haze with hot gold ringlets streaking the (flattened) band. Reuses
+		// the fbm samples above — zero extra noise cost.
+		if (uRings > 0.001) {
+			float rband = smoothstep(0.45, 0.0, abs(d.y + 0.05)); // tighter to the plane
+			vec3 rcol = vec3(0.01, 0.045, 0.06);
+			rcol = mix(rcol, vec3(0.045, 0.26, 0.28), smoothstep(0.3, 0.8, n));
+			rcol = mix(rcol, vec3(0.42, 0.3, 0.09) * (0.9 + 0.3 * uBeat),
+				rband * smoothstep(0.42, 0.8, f5));
+			rcol = mix(rcol, vec3(0.1, 0.5, 0.52), rband * smoothstep(0.6, 0.95, f8) * 0.7);
+			rcol *= 0.55 + 0.4 * rband;
+			col = mix(col, rcol, uRings);
+		}
 		gl_FragColor = vec4(col, 1.0);
 	}
 `;
@@ -118,7 +135,7 @@ export class SpaceBackdrop {
 			new THREE.ShaderMaterial({
 				vertexShader: NEBULA_VERT,
 				fragmentShader: NEBULA_FRAG,
-				uniforms: { uBeat: { value: 0 } },
+				uniforms: { uBeat: { value: 0 }, uRings: { value: 0 } },
 				side: THREE.BackSide,
 				depthWrite: false,
 			})
@@ -218,6 +235,7 @@ export class SpaceBackdrop {
 	// the descent cinematic can sweep it into place.
 	setRingsMode(t) {
 		this._ringsMode = Math.max(0, Math.min(1, t));
+		this.nebula.material.uniforms.uRings.value = this._ringsMode;
 	}
 
 	update(dt, shipPos, progress) {

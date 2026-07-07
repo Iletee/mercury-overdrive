@@ -40,6 +40,8 @@ export class EnemyManager {
 		this.scene = scene;
 		this.ship = ship;
 		this.weapons = weapons;
+		this.field = null;      // attached by main — enables ring ambushes
+		this.ringsMode = false; // stage 2: spawn from behind the big boulders
 		this.active = [];
 		this.events = {
 			onSeekerBlast: () => {}, // seeker reached the player and detonated
@@ -74,9 +76,22 @@ export class EnemyManager {
 		group.add(body, edges);
 
 		const sp = this.ship.position;
-		const spreadX = (Math.random() * 2 - 1) * 700;
-		const spreadY = (Math.random() * 2 - 1) * 400;
-		group.position.set(sp.x + spreadX, sp.y + spreadY, sp.z - 1900 - i * 260 - Math.random() * 300);
+		let spreadX = (Math.random() * 2 - 1) * 700;
+		let spreadY = (Math.random() * 2 - 1) * 400;
+		let pz = sp.z - 1900 - i * 260 - Math.random() * 300;
+		// ring ambush: materialize from behind a shepherd boulder ahead, so
+		// contacts REVEAL themselves from cover instead of fading in — and
+		// the boulder they hid behind is tractor/blast ammunition against them
+		if (this.ringsMode && this.field) {
+			const anchor = this._ambushAnchor();
+			if (anchor) {
+				this._v.copy(anchor.pos).sub(sp).normalize();
+				spreadX = anchor.pos.x + this._v.x * (anchor.r + def.radius + 50) - sp.x;
+				spreadY = anchor.pos.y + this._v.y * (anchor.r + def.radius + 50) - sp.y;
+				pz = anchor.pos.z + this._v.z * (anchor.r + def.radius + 50) - i * 120;
+			}
+		}
+		group.position.set(sp.x + spreadX, sp.y + spreadY, pz);
 		this.scene.add(group);
 
 		this.active.push({
@@ -92,6 +107,21 @@ export class EnemyManager {
 			burst: 0,
 			glow: 0,
 		});
+	}
+
+	// a big rock ahead-ish of the ship to spawn behind (reservoir-sampled)
+	_ambushAnchor() {
+		const sp = this.ship.position;
+		let pick = null, n = 0;
+		for (const rec of this.field.records) {
+			if (rec.r < 110) continue;
+			const dz = rec.pos.z - sp.z;
+			if (dz > -1300 || dz < -2600) continue;
+			if (Math.abs(rec.pos.x - sp.x) > 1100 || Math.abs(rec.pos.y - sp.y) > 750) continue;
+			n += 1;
+			if (Math.random() < 1 / n) pick = rec;
+		}
+		return pick;
 	}
 
 	update(dt) {

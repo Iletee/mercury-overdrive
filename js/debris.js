@@ -4,8 +4,12 @@
 // as it flies toward -Z.
 import * as THREE from 'three';
 
-const ROCK_COUNT = 200;
-const SHARD_COUNT = 44;
+// Pools are sized for the RINGS (stage 2), where micrometeor density jumps
+// ~4.5x; outside them only the base counts draw (InstancedMesh.count).
+const ROCK_COUNT = 900;
+const SHARD_COUNT = 130;
+const BASE_ROCKS = 200;
+const BASE_SHARDS = 44;
 const RADIAL_MIN = 45;
 const RADIAL_MAX = 330;
 const Z_BEHIND = 150;    // spawn window trailing the ship
@@ -111,6 +115,21 @@ export class MicroDebris {
 		if (this.shards.instanceColor) this.shards.instanceColor.needsUpdate = true;
 
 		this._pulse = 0; // decaying beat-pulse brightness, 0..1
+		this._activeRocks = BASE_ROCKS;
+		this._activeShards = BASE_SHARDS;
+		this.rocks.count = BASE_ROCKS;
+		this.shards.count = BASE_SHARDS;
+	}
+
+	// 0 = cruise density, 1 = inside the rings: the sky fills with whipping
+	// micrometeors. Newly activated instances self-heal — the recycler snaps
+	// them into the tube on their first update.
+	setRingsMode(t) {
+		const ct = Math.max(0, Math.min(1, t));
+		this._activeRocks = Math.round(BASE_ROCKS + (ROCK_COUNT - BASE_ROCKS) * ct);
+		this._activeShards = Math.round(BASE_SHARDS + (SHARD_COUNT - BASE_SHARDS) * ct);
+		this.rocks.count = this._activeRocks;
+		this.shards.count = this._activeShards;
 	}
 
 	beatPulse(strength = 1) {
@@ -118,12 +137,15 @@ export class MicroDebris {
 	}
 
 	update(dt, shipPosition, speed) {
-		const total = ROCK_COUNT + SHARD_COUNT;
 		const sx = shipPosition.x;
 		const sy = shipPosition.y;
 		const sz = shipPosition.z;
 
-		for (let i = 0; i < total; i++) {
+		// only the active ranges of each pool are integrated and drawn
+		for (let seg = 0; seg < 2; seg++) {
+		const segStart = seg === 0 ? 0 : ROCK_COUNT;
+		const segEnd = seg === 0 ? this._activeRocks : ROCK_COUNT + this._activeShards;
+		for (let i = segStart; i < segEnd; i++) {
 			// Integrate drift.
 			this.posX[i] += this.velX[i] * dt;
 			this.posY[i] += this.velY[i] * dt;
@@ -156,6 +178,7 @@ export class MicroDebris {
 			} else {
 				this.shards.setMatrixAt(i - ROCK_COUNT, this._scratchM);
 			}
+		}
 		}
 
 		this.rocks.instanceMatrix.needsUpdate = true;

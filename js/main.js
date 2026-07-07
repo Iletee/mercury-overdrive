@@ -87,6 +87,7 @@ const field = new AsteroidField(scene);
 const ship = new PlayerShip(scene);
 const weapons = new WeaponSystem(scene, camera, ship, field);
 const enemies = new EnemyManager(scene, ship, weapons);
+enemies.field = field; // ring ambushes spawn from behind the big boulders
 const fx = new FXSystem(scene, camera);
 const debris = new MicroDebris(scene);
 const boss = new ArchitectBoss(scene, ship, weapons, enemies, fx);
@@ -393,6 +394,8 @@ function restart() {
 	tractor.reset();
 	music.setStage2(false);
 	backdrop.setRingsMode(0);
+	debris.setRingsMode(0);
+	enemies.ringsMode = false;
 	score = 0;
 	elapsed = 0;
 	waveIndex = 0;
@@ -492,8 +495,12 @@ function updatePlaying(dt) {
 		_diveInput.steerY = -Math.sin(t * Math.PI * 2) * 0.9;
 		_diveInput.steerX = Math.sin(t * Math.PI) * 0.3;
 	}
-	// the backdrop planet swings overhead through the dive and stays there
-	backdrop.setRingsMode(inRings ? (stageTransition > 0 ? 1 - stageTransition / TRANSITION_LEN : 1) : 0);
+	// the backdrop planet swings overhead through the dive and stays there;
+	// the sky goes ring-neon and the micrometeor tube fills in as you descend
+	const ringsBlend = inRings ? (stageTransition > 0 ? 1 - stageTransition / TRANSITION_LEN : 1) : 0;
+	backdrop.setRingsMode(ringsBlend);
+	debris.setRingsMode(ringsBlend);
+	enemies.ringsMode = inRings && stageTransition <= 0;
 
 	// the Tractor Array: stage 2's pickup, claimed by flying through
 	if (inRings && !tractorClaimed) {

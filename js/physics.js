@@ -12,7 +12,8 @@ const BUBBLE_AHEAD = 4000;   // covers bolt range — kills always birth live fr
 const BUBBLE_BEHIND = 500;
 const BUBBLE_X = 2300;       // lateral extent (backdrop monoliths stay scripted)
 const BUBBLE_Y = 1600;
-const MAX_BODIES = 300;
+const MAX_BODIES = 240; // the ring sheet saturates the bubble; beyond this
+                        // rocks stay kinematic and nobody can tell
 const FIXED_DT = 1 / 60;
 const DENSITY = 1;           // game units are big; impulses are tuned against this
 const HIT_SPEED = 80;        // world hit-event threshold (approach speed, u/s)
@@ -129,7 +130,7 @@ export class RockPhysics {
 		for (const rec of field.records) {
 			const has = this._entries.has(rec);
 			const inB = this._inBubble(rec, shipPos);
-			if (!has && inB && this._entries.size < MAX_BODIES && adopts < 24) {
+			if (!has && inB && this._entries.size < MAX_BODIES && adopts < 12) {
 				this._adopt(rec);
 				adopts += 1;
 			} else if (has && !inB) this._retire(rec);
@@ -139,7 +140,9 @@ export class RockPhysics {
 		this._acc = Math.min(this._acc + dt, FIXED_DT * 4);
 		let stepped = false;
 		while (this._acc >= FIXED_DT) {
-			b3.b3World_Step(this.world, FIXED_DT, 4);
+			// 2 substeps: drifting debris doesn't stack — solver accuracy
+			// beyond this buys nothing, and it's the hottest loop we own
+			b3.b3World_Step(this.world, FIXED_DT, 2);
 			this._acc -= FIXED_DT;
 			stepped = true;
 		}
