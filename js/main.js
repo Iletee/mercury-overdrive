@@ -108,9 +108,10 @@ const _trailSeen = new Set();
 const _sternV = new THREE.Vector3();
 // wingtip trail anchors — the ship's own ribbons ride the wingtips, NOT the
 // stern: a stern trail lies dead along the chase-camera axis and its
-// overlapping segments stack into a white column across the screen
-const _wingL = { x: -15, key: 'L' };
-const _wingR = { x: 15, key: 'R' };
+// overlapping segments stack into a white column across the screen.
+// (±11, 0, 8) is the hull's actual tipL/tipR — see buildShipGeometry.
+const _wingL = { x: -11, key: 'L' };
+const _wingR = { x: 11, key: 'R' };
 let _trailDt = 0;
 function feedTrail(ent, pos, colorHex, width) {
 	_trailSeen.add(ent);
@@ -128,7 +129,7 @@ function updateTrails(dt) {
 	if (ship.alive) {
 		for (const wing of [_wingL, _wingR]) {
 			_sternV.set(wing.x, 0, 8).applyQuaternion(ship.group.quaternion).add(ship.position);
-			feedTrail(wing, _sternV, 0x1d8f96, 1.3);
+			feedTrail(wing, _sternV, 0x1d8f96, 1.1);
 		}
 	}
 	for (const e of enemies.active) {

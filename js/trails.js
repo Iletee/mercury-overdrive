@@ -6,8 +6,9 @@
 import * as THREE from 'three';
 
 const TRAILS = 26;
-const POINTS = 14;        // history samples per ribbon
-const SAMPLE_DT = 0.035;  // seconds between samples — quantized, like the era
+const POINTS = 10;        // history samples per ribbon — short enough that
+                          // the tail visibly ENDS instead of trailing off
+const SAMPLE_DT = 0.032;  // seconds between samples — quantized, like the era
 const VERTS_PER = POINTS * 2;
 
 export class TrailSystem {
