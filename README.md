@@ -35,6 +35,7 @@ discrete GPU helps — the whole world blooms.
 | **Shift** | Boost (drains the meter; rings refill it) |
 | **X** | Brake — narrows the view into a steadier gun platform |
 | **A A / D D** (double-tap) | Barrel roll into that direction — sideways dodge with a moment of invulnerability |
+| **F** | Toggle fullscreen |
 
 ## The run
 

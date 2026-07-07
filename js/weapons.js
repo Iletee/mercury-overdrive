@@ -148,9 +148,17 @@ export class WeaponSystem {
 		this.enemy.flush();
 	}
 
+	// lock forgiveness is set in pixels, which SHRINKS relative to the scene
+	// on a big display — scale it with the viewport so aim feel is constant
+	_pxScale() {
+		return Math.min(2.2, Math.max(1, Math.min(window.innerWidth, window.innerHeight) / 800));
+	}
+
 	_updateLock(input, enemies) {
 		const prevState = this.lockState;
-		let best = null, bestPx = CONFIG.lockRangePx;
+		const s = this._pxScale();
+		let best = null, bestPx = CONFIG.lockRangePx * s;
+		const snapPx = CONFIG.lockSnapPx * s;
 		const w = window.innerWidth, h = window.innerHeight;
 		for (const e of enemies) {
 			this._proj.copy(e.position).project(this.camera);
@@ -165,7 +173,7 @@ export class WeaponSystem {
 			}
 		}
 		this.lockTarget = best;
-		this.lockState = best ? (bestPx < CONFIG.lockSnapPx ? 'locked' : 'tracking') : 'none';
+		this.lockState = best ? (bestPx < snapPx ? 'locked' : 'tracking') : 'none';
 		if (this.lockState !== prevState) this.events.onLockChange(this.lockState);
 	}
 
@@ -219,8 +227,8 @@ export class WeaponSystem {
 
 		const w = window.innerWidth, h = window.innerHeight;
 		// painting is generous: 1.6x the single-lock radius, so a fast sweep
-		// still catches targets between frames
-		const paintPx = CONFIG.lockRangePx * 1.6;
+		// still catches targets between frames (viewport-scaled like the lock)
+		const paintPx = CONFIG.lockRangePx * 1.6 * this._pxScale();
 		// tag the enemy NEAREST the cursor — hovering a painted target keeps
 		// stacking that same lock (it fills up, never gets skipped for a
 		// neighbor); full-stack targets yield to the next-nearest

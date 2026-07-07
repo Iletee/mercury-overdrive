@@ -364,6 +364,7 @@ export class HUD {
 			['SHIFT', 'boost'],
 			['X', 'brake'],
 			['A·A / D·D', 'barrel roll'],
+			['F', 'fullscreen'],
 		];
 		controls.forEach(([key, desc], i) => {
 			if (i > 0) legend.appendChild(el('span', 'mo-title__dot', '·'));

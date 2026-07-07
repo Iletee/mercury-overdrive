@@ -197,6 +197,11 @@ phaser.add(phaserInner, phaserInnerEdges, phaserOuter);
 scene.add(phaser);
 
 // --- event wiring ------------------------------------------------------------
+// F toggles fullscreen (must ride a user gesture — a keydown qualifies)
+input.onKey('KeyF', () => {
+	if (document.fullscreenElement) document.exitFullscreen();
+	else document.documentElement.requestFullscreen?.();
+});
 // the ascending shot melody, made visible: each shot climbs the palette,
 // resetting every bar in step with the music engine's pentatonic run
 const SHOT_COLORS = [0x2de2e6, 0x4bd0f0, 0x7ab8ff, 0x9d8cff, 0xc76bff, 0xff5fd0, 0xff3864, 0xffffff];
