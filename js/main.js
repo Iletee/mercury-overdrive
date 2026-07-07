@@ -22,6 +22,7 @@ import { ArchitectBoss } from './boss.js';
 import { RockPhysics } from './physics.js';
 import { VolumetricPulsarLight } from './volumetric.js';
 import { TractorArray } from './tractor.js';
+import { TrailSystem } from './trails.js';
 
 const State = { TITLE: 0, PLAYING: 1, GAMEOVER: 2, VICTORY: 3 };
 
@@ -98,6 +99,52 @@ field.physics = physics;
 // volumetric god rays from the pulsar; the rocks carve shadows through them
 const volumetric = new VolumetricPulsarLight(scene, renderer, field);
 const tractor = new TractorArray(ship, field, physics);
+const trails = new TrailSystem(scene);
+
+// PS2 contrails: the ship's stern, every enemy, every volley missile. A
+// Map tracks entity -> ribbon; anything not fed this frame gets released.
+const _trailMap = new Map();
+const _trailSeen = new Set();
+const _sternV = new THREE.Vector3();
+// wingtip trail anchors — the ship's own ribbons ride the wingtips, NOT the
+// stern: a stern trail lies dead along the chase-camera axis and its
+// overlapping segments stack into a white column across the screen
+const _wingL = { x: -15, key: 'L' };
+const _wingR = { x: 15, key: 'R' };
+let _trailDt = 0;
+function feedTrail(ent, pos, colorHex, width) {
+	_trailSeen.add(ent);
+	let h = _trailMap.get(ent);
+	if (!h) {
+		h = trails.acquire(colorHex, width);
+		if (!h) return;
+		_trailMap.set(ent, h);
+	}
+	trails.push(h, pos, _trailDt);
+}
+function updateTrails(dt) {
+	_trailDt = dt;
+	_trailSeen.clear();
+	if (ship.alive) {
+		for (const wing of [_wingL, _wingR]) {
+			_sternV.set(wing.x, 0, 8).applyQuaternion(ship.group.quaternion).add(ship.position);
+			feedTrail(wing, _sternV, 0x1d8f96, 1.3);
+		}
+	}
+	for (const e of enemies.active) {
+		if (e.alive) feedTrail(e, e.position, e.color, 2.2);
+	}
+	for (const b of weapons.player.bolts) {
+		if (b.active && b.damage > 1) feedTrail(b, b.pos, Colors.pink, 2);
+	}
+	for (const [ent, h] of _trailMap) {
+		if (!_trailSeen.has(ent)) {
+			trails.release(h);
+			_trailMap.delete(ent);
+		}
+	}
+	trails.update(camera);
+}
 
 // --- the Tractor Array: stage 2's pickup, deep in the ring bands
 const tractorPickup = new THREE.Group();
@@ -395,7 +442,10 @@ function restart() {
 	music.setStage2(false);
 	backdrop.setRingsMode(0);
 	debris.setRingsMode(0);
+	field.setIcyMode(0);
 	enemies.ringsMode = false;
+	trails.reset();
+	_trailMap.clear();
 	score = 0;
 	elapsed = 0;
 	waveIndex = 0;
@@ -442,6 +492,8 @@ function endGame(won) {
 		state = State.GAMEOVER;
 		hud.setPings([]);
 		hud.setPaintMarks([]);
+		trails.reset();
+		_trailMap.clear();
 		fx.spawnExplosion(ship.position, Colors.cyan, 3);
 		music.explosion(true);
 		music.gameOverSting();
@@ -500,6 +552,7 @@ function updatePlaying(dt) {
 	const ringsBlend = inRings ? (stageTransition > 0 ? 1 - stageTransition / TRANSITION_LEN : 1) : 0;
 	backdrop.setRingsMode(ringsBlend);
 	debris.setRingsMode(ringsBlend);
+	field.setIcyMode(ringsBlend);
 	enemies.ringsMode = inRings && stageTransition <= 0;
 
 	// the Tractor Array: stage 2's pickup, claimed by flying through
@@ -542,6 +595,7 @@ function updatePlaying(dt) {
 	debris.update(dt, ship.position, ship.speed);
 	backdrop.update(dt, ship.position, progress());
 	volumetric.update(dt, ship.position);
+	updateTrails(dt);
 
 	// boost audio state
 	if (ship.boostEngaged !== wasBoosting) {

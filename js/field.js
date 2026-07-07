@@ -11,6 +11,8 @@ function smoothstep(edge0, edge1, x) {
 	return t * t * (3 - 2 * t);
 }
 
+const _ICE_BODY = new THREE.Color(0x7fa3bd);
+
 function mulberry32(a) {
 	return function () {
 		a |= 0; a = (a + 0x6d2b79f5) | 0;
@@ -49,6 +51,11 @@ export class AsteroidField {
 
 		this.meshes = [];
 		this.freeSlots = [];
+		this._materials = [];
+		this._rims = [];       // live rim Color refs (uniforms hold these)
+		this._rimBase = [];    // gauntlet rims (steel-violet)
+		this._rimIce = [];     // ring rims (pale glacial cyan)
+		this._icy = 0;
 		for (let i = 0; i < VARIANTS; i++) {
 			const geo = makeRockGeometry(CONFIG.seed * 13 + i * 101, 0.55 + i * 0.25);
 			const mat = new THREE.MeshStandardMaterial({
@@ -57,7 +64,12 @@ export class AsteroidField {
 			// rocks wear desaturated steel-violet rims — saturated neon is
 			// reserved for threats and interactables so enemies read instantly
 			const ROCK_RIMS = [0x574a8f, 0x8f4a72, 0x4a5c8f];
+			const ICE_RIMS = [0x9fd8e8, 0xbde4ee, 0x8cc8e0];
 			const rim = new THREE.Color(ROCK_RIMS[i]).multiplyScalar(0.85);
+			this._materials.push(mat);
+			this._rims.push(rim);
+			this._rimBase.push(rim.clone());
+			this._rimIce.push(new THREE.Color(ICE_RIMS[i]).multiplyScalar(0.9));
 			mat.onBeforeCompile = (shader) => {
 				shader.uniforms.uBeat = this.uniforms.uBeat;
 				shader.uniforms.uRim = { value: rim };
@@ -122,9 +134,11 @@ export class AsteroidField {
 		let amp = smoothstep(0, 3000, p) * smoothstep(CONFIG.courseLength, CONFIG.courseLength - 4000, p);
 		amp *= 1 - smoothstep(52000, 54000, p) * smoothstep(62000, 60500, p);
 		// in the rings the route hugs the (flat) ring plane: wide lateral
-		// sweeps, very little vertical
+		// sweeps, very little vertical — plus one long sustained bend, the
+		// arc of actually flying AROUND the planet along its rings
 		const ringT = smoothstep(CONFIG.stage1End, CONFIG.stage1End + 3000, p);
-		const baseX = Math.sin(p * 0.00022) * (420 + 260 * ringT) * amp;
+		const orbitArc = Math.sin((p - CONFIG.stage1End) * 0.00007) * 1100 * ringT;
+		const baseX = Math.sin(p * 0.00022) * (420 + 260 * ringT) * amp + orbitArc * amp;
 		const baseY = Math.sin(p * 0.00035 + 1.3) * 300 * (1 - 0.75 * ringT) * amp
 			+ Math.sin(p * 0.00013) * 180 * ringT;
 		let split = 0;
@@ -253,6 +267,23 @@ export class AsteroidField {
 		this.scene.add(this.gate2);
 	}
 
+	// The rings are ICE: rock bodies brighten toward glacial blue-white,
+	// surfaces go glossy, rims shift to pale cyan. Blended 0..1 with the
+	// descent. Also boosts the guidance-ring glow — the neon ring haze
+	// otherwise swallows the very rings you're meant to thread.
+	setIcyMode(t) {
+		const ct = Math.max(0, Math.min(1, t));
+		if (ct === this._icy) return;
+		this._icy = ct;
+		for (let i = 0; i < VARIANTS; i++) {
+			const m = this._materials[i];
+			m.color.setHex(0x171030).lerp(_ICE_BODY, ct);
+			m.roughness = 0.9 - 0.5 * ct;
+			m.metalness = 0.15 - 0.1 * ct;
+			this._rims[i].copy(this._rimBase[i]).lerp(this._rimIce[i], ct);
+		}
+	}
+
 	// The gate sits dark behind the Architect and lights when it falls.
 	setGateLit(on) {
 		this._gateRing.material.color.setHex(on ? Colors.white : Colors.cyan);
@@ -333,10 +364,12 @@ export class AsteroidField {
 		const D = CONFIG.chunkDepth;
 		const z0 = -index * D;
 		const records = [];
-		const count = Math.round(84 + 40 * rng()); // the rings run DENSE
+		// the rings run PACKED — a true debris field, concentrated around the
+		// flyable width so the density actually reads on screen
+		const count = Math.round(140 + 40 * rng());
 		for (let i = 0; i < count; i++) {
 			const z = z0 - rng() * D;
-			let x = (rng() * 2 - 1) * 2300;
+			let x = (rng() * 2 - 1) * 1600;
 			// ringlet banding: skip rocks inside the gap channels
 			if (Math.sin(x * 0.0016 + (-z) * 0.0002) > 0.55 && rng() < 0.8) continue;
 			// the sheet: thin around the (gently undulating) ring plane, with
@@ -444,7 +477,8 @@ export class AsteroidField {
 		this.gate.rotation.z += dt * 0.4;
 		this.gate2.rotation.z -= dt * 0.3;
 		this._gateRing.scale.setScalar(1 + this.uniforms.uBeat.value * 0.03);
-		this._ringMat.opacity = 0.3 + this.uniforms.uBeat.value * 0.45;
+		// guidance rings burn brighter inside the neon haze (icy mode)
+		this._ringMat.opacity = 0.3 + this._icy * 0.5 + this.uniforms.uBeat.value * 0.45;
 	}
 
 	// sphere vs field — used for ship collision. Returns {record, normal, depth} or null.

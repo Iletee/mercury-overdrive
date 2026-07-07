@@ -43,18 +43,22 @@ discrete GPU helps — the whole world blooms.
   behind you. Act one is the meteorite gauntlet; beat the Architect and its
   gate opens into **THE RINGS** — the destination planet's ring system.
 - **The rings are a different world.** Crossing the gate plays a scripted
-  dive — the ship noses over and flares out onto the band plane while the
-  planet swings up to own the entire sky and the *whole skybox goes
-  ring-neon*: teal haze, hot gold ringlets, and a micrometeor storm several
-  times denser than the gauntlet. The bands are a flat, co-moving debris
-  sheet with gap channels: most rocks orbit in your direction of flight,
+  dive — the ship noses over and flares out onto the band plane, the *whole
+  skybox goes ring-neon* (teal haze, hot gold ringlets), and the planet
+  swings out to your flank: the route bends into a long orbital arc, flying
+  *around* the colossus along its rings. The bands are **packed with ice**:
+  a dense sheet of glacial blue-white shards, co-moving with your flight,
   colliding and fracturing among themselves — surf alongside a boulder as
-  moving cover, or feed it to the enemies. **Contacts ambush from behind
-  the shepherd boulders** — exactly where a gathered tractor cloud shines.
-  The music becomes its own track: same 118 BPM grid, but cosmic and
-  drummy — large pads, a syncopated tom groove, gallop bass, and a
+  moving cover, or feed it to the enemies. Guidance rings burn brighter
+  here so the neon haze never swallows the route. **Contacts ambush from
+  behind the shepherd boulders** — exactly where a gathered tractor cloud
+  shines. The music becomes its own track: same 118 BPM grid, but cosmic
+  and drummy — large pads, a syncopated tom groove, gallop bass, and a
   separate soaring melody with long held tones. (Dev kindness: dying in
   the rings respawns you at the rings.)
+- **Everything leaves a contrail.** Deliberately PS2-era ribbons — fixed-
+  cadence samples, hard quadratic fade: the ship's wingtips, every enemy,
+  every volley missile.
 - **The Tractor Array** waits deep in the bands (~73k): hold **E** to drag
   nearby debris into a whirling orbital shield that soaks enemy fire,
   release to fling the whole cloud where you're aiming — the kinetic-kill
@@ -139,6 +143,7 @@ wired to it:
 | `js/field.js` | Seeded chunked asteroid field, route/fork system, collectible rings |
 | `js/physics.js` | Box3D rock physics — the bubble, blasts, kicks, impact chipping |
 | `js/tractor.js` | The Tractor Array — orbital debris shield / kinetic shotgun |
+| `js/trails.js` | PS2-era ribbon contrails (wingtips, enemies, volley missiles) |
 | `js/volumetric.js` | Raymarched volumetric pulsar light with shadow-carved god rays |
 | `js/enemies.js` | Shard / Seeker / Bastion behaviors |
 | `js/boss.js` | THE ARCHITECT — shield lattice, beam sweeps, vents, novas, derez |

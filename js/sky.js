@@ -242,15 +242,15 @@ export class SpaceBackdrop {
 		// backdrop is glued to the ship: infinitely far away
 		this.root.position.copy(shipPos);
 		// ...except the planet swells with progress — that's the sense of
-		// arrival. In rings mode it blends up and overhead: a colossus you
-		// fly beneath, its ring plane (fictionally) the one you're in.
+		// arrival. In rings mode it blends off to the SIDE, huge: you're
+		// orbiting it now, flying along its rings with the colossus abeam.
 		const rm = this._ringsMode;
 		const scale = (340 + progress * 3400) * (1 - rm) + 6200 * rm;
 		this.planet.scale.setScalar(scale);
 		this.planet.position.set(
-			(2400 - progress * 1400) * (1 - rm) + 500 * rm,
-			(900 - progress * 500) * (1 - rm) + 3400 * rm,
-			-8200 - 1400 * rm
+			(2400 - progress * 1400) * (1 - rm) - 6400 * rm,
+			(900 - progress * 500) * (1 - rm) + 1500 * rm,
+			-8200 - 1000 * rm
 		);
 		this._planetRing.material.opacity = 0.16 + rm * 0.1;
 		this.planet.rotation.y += dt * 0.01;
